@@ -145,13 +145,16 @@ plot_sample_PCA_plot <- function(dds_obj, figure_folder, file_name,
 
 plot_volcano_plot <- function(result_df, figure_folder, file_name, 
                               thread = 1, dot_size =2, label_gene = NULL,
+                              max_p = NULL,max_fc = NULL,
                               fig.width = 8, fig.height = 8){
   
   result_df <- result_df  %>% filter(!is.na(padj))
-  max_p <- max(-log10(result_df$padj[is.finite(-log10(result_df$padj))]), na.rm = TRUE)
-
-  max_fc <- max(abs(result_df$log2FoldChange), na.rm = TRUE, infinite = FALSE)
-  
+  if (is.null(max_p)){
+    max_p <- max(-log10(result_df$padj[is.finite(-log10(result_df$padj))]), na.rm = TRUE)
+  }
+  if (is.null(max_fc)){
+    max_fc <- max(abs(result_df$log2FoldChange), na.rm = TRUE, infinite = FALSE)
+  }
   
   # Define the factor levels so that "NO" is last
   result_df <- result_df %>%
