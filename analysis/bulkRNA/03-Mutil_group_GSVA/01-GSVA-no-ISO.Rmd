@@ -1,0 +1,300 @@
+---
+title: "GSVA for mutil Group"
+author: "Ximing Ran"
+date: "2025-03-24"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: false
+  html_document:
+    # code_folding: hide
+    toc: true
+    toc_float: true
+hitheme: tomorrow
+highlighter: highlight.js
+
+---
+
+```{r setup, include=FALSE}
+# load libraries
+library(tidyverse)
+library(knitr)
+set.seed(2024)
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.path = "./results/Analysis_figure/"
+)
+
+theme_set(theme_bw() + theme(legend.position = "bottom"))
+knitr::kable(head(mtcars[, 1:4]), "simple")
+```
+
+```{r}
+library(tibble)
+library(tidyr)
+library(dplyr)
+library(rtracklayer)
+```
+
+
+
+```{r local_function_load}
+# load function from local files
+source(here::here("source", "DEG_functions.R"))
+```
+
+\newpage
+
+# 1. Read the count data
+In this section, we will read the clean count data from the synaptosomes_bulkRNA folder.  We will read the data and merge them into a single table. 
+
+```{r load_bulkRNA_data}
+input_count <- read.csv(here::here("data", "bulkRNA",
+                                      "bulkRNA_counts_cleaned.csv"))
+counts <-  as.data.frame(input_count) %>% column_to_rownames(var = "gene")
+colnames(counts) <- gsub("_", "-", colnames(counts))
+
+# if the colname is start with X, remove it
+colnames(counts) <- gsub("^X", "", colnames(counts))
+
+# raw sample list
+sample_list_raw <- read.csv(here::here("data", "bulkRNA",
+                                      "sample_info_FXS.csv")) %>%
+                    mutate(condition = Label,
+                           sample = gsub("_", "-", Sample_ID)) %>%
+                    filter(Diagosis != "ISO")
+
+
+# Ensure the column names of counts exist in Sample.name
+new_colnames <- sample_list_raw$sample[match(colnames(counts), sample_list_raw$sample )]
+
+# Assign new column names
+colnames(counts) <- new_colnames
+
+
+# sort the columns by the colname
+condition_list <- data.frame(
+  group =sample_list_raw$condition
+)
+
+row.names(condition_list) <- sample_list_raw$sample
+
+counts<- counts[, rownames(condition_list)]
+
+gene_name_mapping<- readRDS(here::here("data","ref" ,"gene_name_mapping.rds"))
+
+
+
+
+```
+
+
+```{r DESeq2_analysis}
+# Init the result folder structure for the result
+result_folder_all = './results'
+result_folder = result_folder_all
+
+```
+
+
+
+# 2. Visualization for reuslt
+
+## (1) Sample information - PCA plot
+```{r Sample_PCA, fig.width=12, fig.height=12}
+figure_folder = result_folder
+# do PCA for counts data
+dds_obj <- DESeqDataSetFromMatrix(countData = counts,
+                                  colData = condition_list,
+                                  design = ~ group)
+vsd.obj <- varianceStabilizingTransformation(dds_obj, blind = TRUE)
+pcaData <- plotPCA(vsd.obj,  intgroup = c("group"), returnData = T)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+p <-ggplot(pcaData, aes(PC1, PC2, color=group)) +
+  geom_point(size=3) +
+  labs(x = paste0("PC1: ",percentVar[1],"% variance"),
+       y = paste0("PC2: ",percentVar[2],"% variance"),
+  ) +
+  # stat_ellipse(level = 0.8)+
+  # geom_polygon(data =pcaData, aes(fill = group), alpha = 0.2, color = NA, show.legend = FALSE) +
+
+  theme_bw() +
+  # theme_classic()+
+  theme(text = element_text(family = "Arial", colour = "black")) +
+  # scale_color_manual(values = assigned_colors) +
+  ggrepel::geom_text_repel(aes(label = name), color = "black")
+
+print(p)
+ggsave("./results/01-Sample_info/01_sample_PCA_plot.pdf", p,width = 12, height = 12, units = "in", dpi = 300)
+ggsave("./results/01-Sample_info/01_sample_PCA_plot.png", p,width = 12, height = 12, units = "in", dpi = 300)
+```
+
+\newpage
+```{r Sample_PCA_group, fig.width=12, fig.height=12}
+p <-ggplot(pcaData, aes(PC1, PC2, color=group)) +
+  geom_point(size=3) +
+  labs(x = paste0("PC1: ",percentVar[1],"% variance"),
+       y = paste0("PC2: ",percentVar[2],"% variance"),
+  ) +
+  # stat_ellipse(level = 0.8)+
+  # geom_polygon(data =pcaData, aes(fill = group), alpha = 0.2, color = NA, show.legend = FALSE) +
+
+  theme_bw() +
+  # theme_classic()+
+  theme(text = element_text(family = "Arial", colour = "black")) +
+  # scale_color_manual(values = assigned_colors) +
+  ggrepel::geom_text_repel(aes(label = group), color = "black")
+
+print(p)
+ggsave("./results/01-Sample_info/01_sample_PCA_plot_group.pdf", p,width = 12, height = 12, units = "in", dpi = 300)
+ggsave("./results/01-Sample_info/01_sample_PCA_plot_group.png", p,width = 12, height = 12, units = "in", dpi = 300)
+  
+
+```
+
+\newpage
+
+## (2) Sample information - Distance heatmap
+
+```{r Sample_dis_Heatmap, fig.width=12, fig.height=12}
+ # Now apply variance stabilizing transformation
+ sampleDists <- dist(t(assay(vsd.obj)))
+ sampleDistMatrix <- as.matrix( sampleDists )
+ rownames(sampleDistMatrix) <- paste( vsd.obj$group )
+ colors <- colorRampPalette( rev(RColorBrewer::brewer.pal(9, "Blues")) )(255)
+ p <- pheatmap::pheatmap(sampleDistMatrix,
+                         clustering_distance_rows = sampleDists,
+                         clustering_distance_cols = sampleDists,
+                         col = colors) 
+ggsave("./results/01-Sample_info/02_sample_distance_heatmap.pdf",
+       p,width = 12, height = 12, units = "in", dpi = 300)
+ggsave("./results/01-Sample_info/02_sample_distance_heatmap.png",
+       p, width = 12, height = 12, units = "in", dpi = 300)
+
+```
+
+\newpage
+
+
+
+# 3. GSVA analysis
+
+```{r GSVA_analysis, fig.width=6, fig.height=6}
+
+#
+# # The following code is used to generate the GSVA matrix , only need to run once
+# gmxFile <- here::here("data", "ref", "c5.go.v2023.1.Hs.symbols.gmt")
+# go_list <- getGmt(gmxFile)
+# 
+# geneset <- go_list
+# dat <- as.matrix(counts)
+# 
+# gsvapar <- gsvaParam(dat, geneset, maxDiff=TRUE)
+# gsva_es <- gsva(gsvapar)
+# gsva_matrix <- as.data.frame(gsva_es)
+# 
+# # save the result
+# write.csv(gsva_matrix, "./results/02-GSVA/01_GSVA_matrix.csv")
+# 
+
+
+
+
+# plot the heatmap for the GSVA result
+# pathway_list <- read.csv(here::here("data", "ref", "focus-pathway_2024_10_03.csv"))
+pathway_list <- read.csv(here::here("data", "ref", "focus-pathway_2025_03_26.csv"))
+
+box_plot_folder<- file.path(result_folder,"04-GSVA","Boxplot")
+# create the folder
+dir.create(box_plot_folder, showWarnings = FALSE)
+
+gsva_matrix <- read.csv("./results/02-GSVA/01_GSVA_matrix.csv", row.names = 1)
+colnames(gsva_matrix) <- sub("^X", "", colnames(gsva_matrix))
+colnames(gsva_matrix) <- gsub("\\.", "-", colnames(gsva_matrix))
+condition_list_label <- condition_list 
+condition_list_label$group <- factor(
+  condition_list_label$group,
+  # levels = c("CTRL_Veh_0", "CTRL_Veh_10",  "CTRL_Veh_100",
+  #            "AD_Veh_0", "AD_Veh_10", "AD_Veh_100")
+  levels = c("CTRL_VEH", "CTRL_BAY", "CTRL_BPN","CTRL_BP",
+             "FXS_VEH", "FXS_BAY", "FXS_BPN","FXS_BP")
+)
+
+
+# plot for the focus pathway
+for (i in 1:5){
+  pathway_name <- pathway_list$pathway[i]
+ # pathway_name <- "GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE"
+  print(pathway_name)
+  p<-plot_gsva_boxplot_mutil_10(gsva_matrix,
+                    condition_list_label =condition_list_label,
+                    pathway_name =  pathway_name,
+                    figure_folder = file.path(result_folder,"02-GSVA","Boxplot-pair"),
+                    file_name = paste0("GSVA_", pathway_name),
+                    fig.height = 6, fig.width = 6,
+                    reference_group_1="CTRL_VEH", compare_group_1="CTRL_BAY",
+                    reference_group_2="FXS_VEH",  compare_group_2="FXS_BAY",
+                    reference_group_3="CTRL_VEH", compare_group_3="CTRL_BPN",
+                    reference_group_4="FXS_VEH",  compare_group_4="FXS_BPN",
+                    reference_group_5="CTRL_VEH", compare_group_5="CTRL_BP",
+                    reference_group_6="FXS_VEH",  compare_group_6="FXS_BP",
+                    reference_group_7="CTRL_VEH", compare_group_7="FXS_VEH",
+                    reference_group_8="CTRL_VEH", compare_group_8="FXS_BAY",
+                    reference_group_9="CTRL_VEH", compare_group_9="FXS_BPN",
+                    reference_group_10="CTRL_VEH",compare_group_10="FXS_BP")
+  print(p)
+}
+
+# 
+# # plot for the focus pathway
+# for (i in 1:nrow(pathway_list)){
+#   
+#   pathway_name <- pathway_list$pathway[i]
+#  # pathway_name <- "GOBP_MITOCHONDRIAL_GENOME_MAINTENANCE"
+#   # print(pathway_name)
+#   
+#   # show process each 10 pathway
+#   if (i %% 10 == 0){
+#     print(paste0("Processing ", i, " pathway"))
+#   }
+#   
+#   
+#   p<-plot_gsva_boxplot_mutil_10(gsva_matrix,
+#                     condition_list_label =condition_list_label,
+#                     pathway_name =  pathway_name,
+#                     figure_folder = file.path(result_folder,"02-GSVA","Boxplot-pair"),
+#                     file_name = paste0("GSVA_", pathway_name),
+#                     fig.height = 6, fig.width = 6,
+#                     reference_group_1="CTRL_VEH", compare_group_1="CTRL_BAY",
+#                     reference_group_2="FXS_VEH",  compare_group_2="FXS_BAY",
+#                     reference_group_3="CTRL_VEH", compare_group_3="CTRL_BPN",
+#                     reference_group_4="FXS_VEH",  compare_group_4="FXS_BPN",
+#                     reference_group_5="CTRL_VEH", compare_group_5="CTRL_BP",
+#                     reference_group_6="FXS_VEH",  compare_group_6="FXS_BP",
+#                     reference_group_7="CTRL_VEH", compare_group_7="FXS_VEH",
+#                     reference_group_8="CTRL_VEH", compare_group_8="FXS_BAY",
+#                     reference_group_9="CTRL_VEH", compare_group_9="FXS_BPN",
+#                     reference_group_10="CTRL_VEH",compare_group_10="FXS_BP")
+#   print(p)
+# }
+
+
+
+
+
+```
+
+
+
+\newpage
+# Session information
+```{r}
+sessionInfo()
+```
+
