@@ -81,7 +81,8 @@ for (i in 1:length(sample_list)) {
 }
 
 # replace all - in column names with _
-colnames(counts) <- gsub("-", "_", colnames(counts))
+colnames(counts) <- c("GeneID","GeneName" ,sample_df$Sample_ID)
+colnames(counts) <-  gsub("-", "_", colnames(counts))
 write.csv(counts,here::here("data", "bulkRNA", 
                             "bulkRNA_counts_raw.csv"),
           row.names = FALSE)
