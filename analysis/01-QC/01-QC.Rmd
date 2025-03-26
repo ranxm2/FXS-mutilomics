@@ -1,0 +1,183 @@
+---
+title: "Quality Control for bulk RNA-seq data"
+author: "Ximing Ran"
+date: "2025-03-25"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: false
+  html_document:
+    # code_folding: hide
+    toc: true
+    toc_float: true
+hitheme: tomorrow
+highlighter: highlight.js
+
+---
+
+```{r setup, include=FALSE}
+# load libraries
+library(tidyverse)
+library(knitr)
+
+knitr::opts_chunk$set(
+  # echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 9,
+  fig.height = 4,
+  fig.path = "./results/firgures/"
+)
+
+theme_set(theme_bw() + theme(legend.position = "bottom"))
+knitr::kable(head(mtcars[, 1:4]), "simple")
+```
+
+\newpage
+```{r}
+library(tibble)
+library(tidyr)
+library(dplyr)
+library(rtracklayer)
+```
+
+
+
+```{r local_function_load}
+# load function from local files
+
+```
+
+
+# 1. Read the count data     
+
+```{r load_bulkRNA_data}
+sample_df <- read.csv(here::here("data", "bulkRNA", 
+                                 "sample_info_FXS.csv"), header = TRUE)
+
+
+sample_list <- sample_df$Sample_name
+condition_list <-  sample_df$Diagosis
+counts_ref <- read.csv(here::here("data", "bulkRNA",
+                                  "raw","19149-152-01_S1_L001_final_gene_with_names.csv"), 
+                       header = TRUE)
+
+counts <- tibble()
+for (i in 1:length(sample_list)) {
+  sample <- sample_list[i]
+  gene_file <- here::here("data", "bulkRNA","raw",
+                          paste0(sample, "_final_gene_with_names.csv"))
+  gene <- read.csv(gene_file, header = TRUE)
+  
+  if (i == 1) {
+    counts <- gene[, c("GeneID", "GeneName")]
+    counts <- counts %>% mutate(!!sample := gene$Count)
+  } else {
+    temp_counts <- gene[, c("GeneID", "Count")]
+    colnames(temp_counts)[2] <- sample
+    counts <- merge(counts, temp_counts, by = "GeneID")
+  }
+}
+
+# replace all - in column names with _
+colnames(counts) <- gsub("-", "_", colnames(counts))
+write.csv(counts,here::here("data", "bulkRNA", 
+                            "bulkRNA_counts_raw.csv"),
+          row.names = FALSE)
+```
+
+
+
+
+# 2. Map the gene name.    
+
+In this section, we will map the gene name to the gene ID using the GTF file. Since some gene may have different gene name, we will check if the gene name is unique. If not, we will find the gene that has more than one gene name. And merge their counts. The gene annotation comes from the the file `Homo_sapiens.GRCh38.106.gtf`. The final table will be stored in `results/01-QC/synaptosomes_bulkRNA_counts_cleaned.csv`. 
+
+
+```{r Map_gene_name}
+
+# read the gtf file
+gtf_data <- import(here::here("data", "ref","Homo_sapiens.GRCh38.106.gtf"))
+
+gtf_df <- as.data.frame(gtf_data)
+
+gtf_genes <- gtf_df %>% 
+  filter(type == "gene") %>% 
+  select(gene_id, gene_name) 
+colnames(gtf_genes) <- c("GeneID","GeneName")
+
+# check the annotation format
+head(gtf_genes)
+gtf_gene <- na.omit(gtf_genes)
+
+# check if the gene is unique
+unique_genename <- length(unique(gtf_genes$GeneName)) == nrow(gtf_genes)
+print(paste("GeneName is unique:", unique_genename))
+
+
+# Find the genes that appear more than once
+duplicate_genes <- gtf_genes$GeneName[duplicated(gtf_genes$GeneName)]
+duplicate_genes <- unique(duplicate_genes)
+
+# Correct sprintf statement
+print(sprintf("There are %d genes with duplicate gene names", 
+              length(duplicate_genes)))
+
+# Merge counts data with GTF information
+merged_data <- counts %>% 
+  left_join(gtf_genes, by = "GeneID")%>%
+  select(-GeneName.x,-GeneID)
+
+names(merged_data)[names(merged_data) == "GeneName.y"] <- "gene"
+
+# find the same gene
+aggregated_data <- merged_data %>%
+  group_by(gene) %>%
+  summarise(across(everything(), \(x) sum(x, na.rm = TRUE)))
+
+
+
+# Using sprintf (Recommended for better formatting)
+print(sprintf("The shape of the count matrix is: %d x %d", 
+              dim(aggregated_data)[1], dim(aggregated_data)[2]))
+
+# clean the NA in gene
+aggregated_data <- aggregated_data[complete.cases(aggregated_data), ]
+# check if here is any NA in gene
+print(sprintf("There are %d genes with NA gene name", 
+              sum(is.na(aggregated_data$gene))))
+
+write.csv(aggregated_data, here::here("data", "bulkRNA", 
+                                      "bulkRNA_counts_cleaned.csv"), 
+          row.names = FALSE)
+```
+
+
+<!-- # 3. make gene refernce  -->
+<!-- ALso, we will make a reference table for the gene length. The reference table will be stored in `gene_lengths.csv`.  -->
+
+
+<!-- ```{r make_ref_for_gene} -->
+<!-- # Filter for rows with gene information only -->
+<!-- genes_df <- gtf_df %>% -->
+<!--   filter(type == "gene") %>% -->
+<!--   select(seqnames, start, end, gene_id, gene_name) -->
+
+
+<!-- genes_df <- genes_df %>% -->
+<!--   mutate(gene_length = end - start + 1) %>% -->
+<!--   select(gene_id, gene_name, gene_length) -->
+
+<!-- # Save to CSV -->
+<!-- write.csv(genes_df,here::here("data", "ref", "gene_lengths.csv"),  -->
+<!--           row.names = FALSE) -->
+
+<!-- ``` -->
+
+
+\newpage
+```{r}
+sessionInfo()
+```
+
