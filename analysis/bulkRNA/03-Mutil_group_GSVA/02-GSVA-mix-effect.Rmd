@@ -281,6 +281,8 @@ H_0: \beta_{\text{FXS}} + \beta_{\text{Drug}} + \beta_{\text{FXS:Drug}} = 0
 
 This tests whether the **net drug effect in the FXS group** is equivalent to the CTRL baseline (i.e., no rescue effect).
 
+C
+
 
 ```{r}
 # Load required package
@@ -450,39 +452,30 @@ result_df_BAY <- result_df %>%
   filter(p_FXS_Drug_BAY < 0.05 & beta_FXS * beta_FXS_Drug_BAY < 0) %>%
   arrange(p_FXS_Drug_BAY)
 
-dim(result_df_BAY)
-
-
 # Step2 : Define the degree of rescue
 # Action:
 # We define two rescue categories based on statistical comparisons:
-# - Full Rescue: If the post-treatment average is significantly different from the pre-treatment average
-#                and NOT significantly different from the CTRL group, we classify it as a "full rescue".
-# - Partial Rescue: If the post-treatment average is significantly different from the pre-treatment average
-#                   but still significantly different from the CTRL group, we classify it as a "partial rescue".
-
-
+# - Full Rescue:The post-treatment is NOT significantly different from the CTRL group
+# - Partial Rescue: The post-treatment average is still significantly different from the CTRL group.
 result_df_BAY <- result_df_BAY  %>%
-  mutate(rescue = case_when(
-    p_FXS_Drug_BAY < 0.05 & combined_p_BAY >= 0.05 ~ "Full Rescue",
-    p_FXS_Drug_BAY < 0.05 & combined_p_BAY < 0.05 ~ "Partial Rescue",
-    TRUE ~ "No Rescue"
-  ))
+  mutate(rescue = ifelse(combined_p_BAY >= 0.05, "Full Rescue", "Partial Rescue")
+  )
 
+table(result_df_BAY$rescue)
 
 # Step3 : Consider Side effect
 # Action: If the CTRL After treatment is significantly different from the CTRL Before treatment, we classify it as a "side effect".
 
 result_df_BAY <- result_df_BAY  %>%
-  mutate(side_effect = case_when(
-    p_Drug_BAY < 0.05 ~ "Side Effect",
-    TRUE ~ "No Side Effect"
+  mutate(side_effect = ifelse( p_Drug_BAY < 0.05, "Side Effect","No Side Effect"
   ))
-result_df_BAY <- result_df_BAY %>% filter(side_effect == "No Side Effect") %>% dplyr::select(pathway,rescue, side_effect)
+
+result_df_BAY <- result_df_BAY %>% filter(side_effect == "No Side Effect") %>% 
+  dplyr::select(pathway,rescue, side_effect, everything())
 write.csv(result_df_BAY, "./results/03-Mix-effect/mixed_model_results_BAY.csv", row.names = FALSE)
 
 condition_list_label_BAY <- condition_list_label %>% filter(group %in% c("CTRL_VEH", "CTRL_BAY", "FXS_VEH", "FXS_BAY"))
-
+# 
 # # Only need to run once
 # for (i in 1:nrow(result_df_BAY)) {
 #   if ( i %% 10 == 0) {
@@ -501,7 +494,7 @@ condition_list_label_BAY <- condition_list_label %>% filter(group %in% c("CTRL_V
 #   p<-plot_gsva_boxplot_mutil(gsva_matrix,
 #                       condition_list_label = condition_list_label_BAY,
 #                       pathway_name =  pathway_name,
-#                       figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot-BAY"),
+#                       figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BAY"),
 #                       file_name = paste0("GSVA_", pathway_name, "_BAY"),
 #                       fig.height = 6, fig.width = 4)
 # }
@@ -526,7 +519,7 @@ for (i in 1:2) {
   p2<-plot_gsva_boxplot_mutil(gsva_matrix,
                       condition_list_label = condition_list_label_BAY,
                       pathway_name =  pathway_name,
-                      figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot-BAY"),
+                      figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BAY"),
                       file_name = paste0("GSVA_", pathway_name, "_BAY"),
                       fig.height = 6, fig.width = 4)
 
@@ -547,7 +540,7 @@ print(p_comp)
 ```{r BPN, fig.width=12, fig.height=6}
 
 #----------------------------------------#
-#             Drug :   BPN               #
+#             Drug :  BPN               #
 #----------------------------------------#
 
 # Step1 : Select pathaways with signficant Drug reverse effect
@@ -560,78 +553,81 @@ result_df_BPN <- result_df %>%
 # Step2 : Define the degree of rescue
 # Action:
 # We define two rescue categories based on statistical comparisons:
-# - Full Rescue: If the post-treatment average is significantly different from the pre-treatment average
-#                and NOT significantly different from the CTRL group, we classify it as a "full rescue".
-# - Partial Rescue: If the post-treatment average is significantly different from the pre-treatment average
-#                   but still significantly different from the CTRL group, we classify it as a "partial rescue".
-
+# - Full Rescue:The post-treatment is NOT significantly different from the CTRL group
+# - Partial Rescue: The post-treatment average is still significantly different from the CTRL group.
 result_df_BPN <- result_df_BPN  %>%
-  mutate(rescue = case_when(
-    p_FXS_Drug_BAY < 0.05 & combined_p_BPN >= 0.05 ~ "Full Rescue",
-    p_FXS_Drug_BAY < 0.05 & combined_p_BPN < 0.05 ~ "Partial Rescue",
-    TRUE ~ "No Rescue"
-  ))
+  mutate(rescue = ifelse(combined_p_BPN >= 0.05, "Full Rescue", "Partial Rescue")
+  )
+
+table(result_df_BPN$rescue)
 
 # Step3 : Consider Side effect
 # Action: If the CTRL After treatment is significantly different from the CTRL Before treatment, we classify it as a "side effect".
 
 result_df_BPN <- result_df_BPN  %>%
-  mutate(side_effect = case_when(
-    p_Drug_BPN < 0.05 ~ "Side Effect",
-    TRUE ~ "No Side Effect"
+  mutate(side_effect = ifelse( p_Drug_BPN < 0.05, "Side Effect","No Side Effect"
   ))
 
-result_df_BPN <- result_df_BPN %>% filter(side_effect == "No Side Effect") %>% dplyr::select(pathway,rescue, side_effect)
+result_df_BPN <- result_df_BPN %>% filter(side_effect == "No Side Effect") %>% 
+  dplyr::select(pathway,rescue, side_effect, everything())
 write.csv(result_df_BPN, "./results/03-Mix-effect/mixed_model_results_BPN.csv", row.names = FALSE)
 
 condition_list_label_BPN <- condition_list_label %>% filter(group %in% c("CTRL_VEH", "CTRL_BPN", "FXS_VEH", "FXS_BPN"))
-
+# 
+# # Only need to run once
 # for (i in 1:nrow(result_df_BPN)) {
 #   if ( i %% 10 == 0) {
 #     cat("Processing pathway", i, "of", nrow(result_df_BPN), "\n")
 #   }
 #   pathway_name <- result_df_BPN$pathway[i]
 # 
-#   plot_gsva_boxplot_mutil(gsva_matrix,
+#   p<-plot_gsva_boxplot_mutil(gsva_matrix,
 #                       condition_list_label = condition_list_label,
 #                       pathway_name =  pathway_name,
 #                       figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BPN_all_DRUG"),
 #                       file_name = paste0("GSVA_", pathway_name, "_DRUG"),
 #                       fig.height = 6, fig.width = 6)
-#   
-#   
-#   plot_gsva_boxplot_mutil(gsva_matrix,
+# 
+# 
+#   p<-plot_gsva_boxplot_mutil(gsva_matrix,
 #                       condition_list_label = condition_list_label_BPN,
 #                       pathway_name =  pathway_name,
-#                       figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot-BPN"),
+#                       figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BPN"),
 #                       file_name = paste0("GSVA_", pathway_name, "_BPN"),
 #                       fig.height = 6, fig.width = 4)
 # }
 
 
-for (i in 1:2 ){
+# Only need to run once
+for (i in 1:2) {
   if ( i %% 10 == 0) {
     cat("Processing pathway", i, "of", nrow(result_df_BPN), "\n")
   }
   pathway_name <- result_df_BPN$pathway[i]
-
+  
   p1<-plot_gsva_boxplot_mutil(gsva_matrix,
-                      condition_list_label = condition_list_label,
-                      pathway_name =  pathway_name,
-                      figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BPN_all_DRUG"),
-                      file_name = paste0("GSVA_", pathway_name, "_DRUG"),
-                      fig.height = 6, fig.width = 6)
-
-
+                              condition_list_label = condition_list_label,
+                              pathway_name =  pathway_name,
+                              figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BPN_all_DRUG"),
+                              file_name = paste0("GSVA_", pathway_name, "_DRUG"),
+                              fig.height = 6, fig.width = 6)
+  
+  
+  
   p2<-plot_gsva_boxplot_mutil(gsva_matrix,
-                      condition_list_label = condition_list_label_BPN,
-                      pathway_name =  pathway_name,
-                      figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot-BPN"),
-                      file_name = paste0("GSVA_", pathway_name, "_BPN"),
-                      fig.height = 6, fig.width = 4)
-p_comp <- plot_grid(p1, p2, labels = c("A", "B"))
-print(p_comp)
+                              condition_list_label = condition_list_label_BPN,
+                              pathway_name =  pathway_name,
+                              figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BPN"),
+                              file_name = paste0("GSVA_", pathway_name, "_BPN"),
+                              fig.height = 6, fig.width = 4)
+  
+  
+  
+  p_comp <- plot_grid(p1, p2, labels = c("A", "B"))
+  print(p_comp)
+  
 }
+
 
 
 ```
@@ -645,7 +641,7 @@ print(p_comp)
 
 
 #----------------------------------------#
-#             Drug :   BP               #
+#             Drug :  BP               #
 #----------------------------------------#
 
 # Step1 : Select pathaways with signficant Drug reverse effect
@@ -658,55 +654,53 @@ result_df_BP <- result_df %>%
 # Step2 : Define the degree of rescue
 # Action:
 # We define two rescue categories based on statistical comparisons:
-# - Full Rescue: If the post-treatment average is significantly different from the pre-treatment average
-#                and NOT significantly different from the CTRL group, we classify it as a "full rescue".
-# - Partial Rescue: If the post-treatment average is significantly different from the pre-treatment average
-#                   but still significantly different from the CTRL group, we classify it as a "partial rescue".
-
+# - Full Rescue:The post-treatment is NOT significantly different from the CTRL group
+# - Partial Rescue: The post-treatment average is still significantly different from the CTRL group.
 result_df_BP <- result_df_BP  %>%
-  mutate(rescue = case_when(
-    p_FXS_Drug_BAY < 0.05 & combined_p_BP >= 0.05 ~ "Full Rescue",
-    p_FXS_Drug_BAY < 0.05 & combined_p_BP < 0.05 ~ "Partial Rescue",
-    TRUE ~ "No Rescue"
-  ))
+  mutate(rescue = ifelse(combined_p_BP >= 0.05, "Full Rescue", "Partial Rescue")
+  )
+
+table(result_df_BP$rescue)
 
 # Step3 : Consider Side effect
 # Action: If the CTRL After treatment is significantly different from the CTRL Before treatment, we classify it as a "side effect".
 
 result_df_BP <- result_df_BP  %>%
-  mutate(side_effect = case_when(
-    p_Drug_BP < 0.05 ~ "Side Effect",
-    TRUE ~ "No Side Effect"
+  mutate(side_effect = ifelse( p_Drug_BP < 0.05, "Side Effect","No Side Effect"
   ))
 
-result_df_BP <- result_df_BP %>% filter(side_effect == "No Side Effect") %>% dplyr::select(pathway,rescue, side_effect)
+result_df_BP <- result_df_BP %>% filter(side_effect == "No Side Effect") %>% 
+  dplyr::select(pathway,rescue, side_effect, everything())
 write.csv(result_df_BP, "./results/03-Mix-effect/mixed_model_results_BP.csv", row.names = FALSE)
 
 condition_list_label_BP <- condition_list_label %>% filter(group %in% c("CTRL_VEH", "CTRL_BP", "FXS_VEH", "FXS_BP"))
 
+# 
+# # Only need to run once
 # for (i in 1:nrow(result_df_BP)) {
 #   if ( i %% 10 == 0) {
 #     cat("Processing pathway", i, "of", nrow(result_df_BP), "\n")
 #   }
 #   pathway_name <- result_df_BP$pathway[i]
-# 
-#   plot_gsva_boxplot_mutil(gsva_matrix,
-#                       condition_list_label = condition_list_label,
-#                       pathway_name =  pathway_name,
-#                       figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BP_all_DRUG"),
-#                       file_name = paste0("GSVA_", pathway_name, "_DRUG"),
-#                       fig.height = 6, fig.width = 6)
-# 
-# 
-#   plot_gsva_boxplot_mutil(gsva_matrix,
-#                       condition_list_label = condition_list_label_BP,
-#                       pathway_name =  pathway_name,
-#                       figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot-BP"),
-#                       file_name = paste0("GSVA_", pathway_name, "_BP"),
-#                       fig.height = 6, fig.width = 4)
+#   
+#   p<-plot_gsva_boxplot_mutil(gsva_matrix,
+#                              condition_list_label = condition_list_label,
+#                              pathway_name =  pathway_name,
+#                              figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BP_all_DRUG"),
+#                              file_name = paste0("GSVA_", pathway_name, "_DRUG"),
+#                              fig.height = 6, fig.width = 6)
+#   
+#   
+#   p<-plot_gsva_boxplot_mutil(gsva_matrix,
+#                              condition_list_label = condition_list_label_BP,
+#                              pathway_name =  pathway_name,
+#                              figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BP"),
+#                              file_name = paste0("GSVA_", pathway_name, "_BP"),
+#                              fig.height = 6, fig.width = 4)
 # }
 
 
+# Only need to run once
 for (i in 1:2) {
   if ( i %% 10 == 0) {
     cat("Processing pathway", i, "of", nrow(result_df_BP), "\n")
@@ -714,23 +708,28 @@ for (i in 1:2) {
   pathway_name <- result_df_BP$pathway[i]
   
   p1<-plot_gsva_boxplot_mutil(gsva_matrix,
-                          condition_list_label = condition_list_label,
-                          pathway_name =  pathway_name,
-                          figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BP_all_DRUG"),
-                          file_name = paste0("GSVA_", pathway_name, "_DRUG"),
-                          fig.height = 6, fig.width = 6)
-
-
-  p2<-plot_gsva_boxplot_mutil(gsva_matrix,
-                          condition_list_label = condition_list_label_BP,
-                          pathway_name =  pathway_name,
-                          figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot-BP"),
-                          file_name = paste0("GSVA_", pathway_name, "_BP"),
-                          fig.height = 6, fig.width = 4)
+                              condition_list_label = condition_list_label,
+                              pathway_name =  pathway_name,
+                              figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BP_all_DRUG"),
+                              file_name = paste0("GSVA_", pathway_name, "_DRUG"),
+                              fig.height = 6, fig.width = 6)
   
-p_comp <- plot_grid(p1, p2, labels = c("A", "B"))
-print(p_comp)
+  
+  
+  p2<-plot_gsva_boxplot_mutil(gsva_matrix,
+                              condition_list_label = condition_list_label_BP,
+                              pathway_name =  pathway_name,
+                              figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_BP"),
+                              file_name = paste0("GSVA_", pathway_name, "_BP"),
+                              fig.height = 6, fig.width = 4)
+  
+  
+  
+  p_comp <- plot_grid(p1, p2, labels = c("A", "B"))
+  print(p_comp)
+  
 }
+
 
 
 ```
@@ -784,7 +783,7 @@ pathway_overlap_BAY_BPN <- unique(result_df_BAY$pathway) %>% intersect(unique(re
 condition_list_label_BAY_BPN <- condition_list_label %>% filter(group %in% c("CTRL_VEH","CTRL_BAY", "CTRL_BPN", 
                                                                              "FXS_VEH", "FXS_BAY", "FXS_BPN"))
 
-
+# 
 # for (i in 1:length(pathway_overlap_BAY_BPN )) {
 #   if ( i %% 10 == 0) {
 #     cat("Processing pathway", i, "of", length(pathway_overlap_BAY_BPN ), "\n")
@@ -797,7 +796,7 @@ condition_list_label_BAY_BPN <- condition_list_label %>% filter(group %in% c("CT
 #                           figure_folder = file.path(result_folder,"03-Mix-effect","Boxplot_Overlap_BAY_BPN_all"),
 #                           file_name = paste0("GSVA_", pathway_name, "_DRUG"),
 #                           fig.height = 6, fig.width = 6)
-#   
+# 
 #     plot_gsva_boxplot_mutil(gsva_matrix,
 #                           condition_list_label = condition_list_label_BAY_BPN ,
 #                           pathway_name =  pathway_name,
@@ -838,7 +837,9 @@ write.csv(pathway_overlap_BAY_BPN, "./results/03-Mix-effect/pathway_overlap_BAY_
 
 
 ```
+
 \newpage
+
 **BAY and BP**
 
 ```{r BAY_BP, fig.width=12, fig.height=6}
@@ -848,7 +849,7 @@ pathway_overlap_BAY_BP <- unique(result_df_BAY$pathway) %>% intersect(unique(res
 
 condition_list_label_BAY_BP <- condition_list_label %>% filter(group %in% c("CTRL_VEH","CTRL_BAY", "CTRL_BP", 
                                                                              "FXS_VEH", "FXS_BAY", "FXS_BP"))
-
+# 
 # 
 # for (i in 1:length(pathway_overlap_BAY_BP )) {
 #   if ( i %% 10 == 0) {
@@ -938,7 +939,7 @@ condition_list_label_BPN_BP <- condition_list_label %>% filter(group %in% c("CTR
 # 
 # }
 
-for (i in 1:3 ) {
+for (i in 1:2 ) {
   if ( i %% 10 == 0) {
     cat("Processing pathway", i, "of", length(pathway_overlap_BPN_BP ), "\n")
   }
