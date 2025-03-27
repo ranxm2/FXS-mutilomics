@@ -38,10 +38,9 @@ And we use t-test to compare the GSVA score between different disease situation 
 
 
 
+## Mixed-Effects Model
 
-## Mix-effect model
-
-We model **GSVA scores** using a **mix-effects model**, incorporating **fixed effects** for disease status (FXS), drug treatments, and their **interactions**, along with a **random intercept** for individual-level variability:
+We model **GSVA scores** using a **mixed-effects model**, incorporating **fixed effects** for disease status (FXS), drug treatments, and their **interactions**, along with a **random intercept** to account for individual-level variability:
 
 $$
 \begin{aligned}
@@ -56,8 +55,8 @@ $$
 - $Y_{ij}$: GSVA score for individual $i$ under condition $j$.
 
 - **Fixed Effects:**
-  - $X_{\text{FXS}}$: Disease indicator (1 for **FXS**, 0 for **CTRL**).
-  - $X_{\text{Drug\_BAY}}, X_{\text{Drug\_BPN}}, X_{\text{Drug\_BP}}$: Drug treatment indicators (vehicle is the reference).
+  - $X_{\text{FXS}}$: Disease status indicator (1 for **FXS**, 0 for **CTRL**).
+  - $X_{\text{Drug\_BAY}},\ X_{\text{Drug\_BPN}},\ X_{\text{Drug\_BP}}$: Drug treatment indicators (vehicle is the reference).
   - **Interaction Terms:**
     - $X_{\text{FXS}} \times X_{\text{Drug\_BAY}}$: Interaction between FXS and BAY treatment.
     - $X_{\text{FXS}} \times X_{\text{Drug\_BPN}}$: Interaction between FXS and BPN treatment.
@@ -69,7 +68,11 @@ $$
 - **Error Term:**
   - $\varepsilon_{ij} \sim \mathcal{N}(0, \sigma^2)$: Residual error term.
 
-This model allows us to estimate not only the **main effects** of disease and drug treatments but also **how drug responses differ between FXS and CTRL individuals**. Interaction terms capture whether the drug effect is **modified by disease status**, which is essential for understanding differential pathway responses.
+This model enables us to estimate not only the **main effects** of disease and drug treatments but also **how drug responses differ between FXS and CTRL individuals**. The interaction terms are crucial for detecting whether the effect of each drug is **modified by disease status**, helping us understand disease-specific responses at the pathway level.
+
+
+
+
 ### Hypothesis Testing: Drug Effects Compared to CTRL in the FXS Background
 
 ### **Combined Effect Hypothesis Testing**
