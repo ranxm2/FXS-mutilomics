@@ -39,51 +39,37 @@ And we use t-test to compare the GSVA score between different disease situation 
 
 
 
+
 ## Mixed-Effects Model
 
 We model **GSVA scores** using a **mixed-effects model**, incorporating **fixed effects** for disease status (FXS), drug treatments, and their **interactions**, along with a **random intercept** to account for individual-level variability:
 
 $$
-Y_{ij} = \beta_0 
-+ \beta_1 X_{\text{FXS}} 
-+ \beta_2 X_{\text{Drug\_BAY}} 
-+ \beta_3 X_{\text{Drug\_BPN}} 
-+ \beta_4 X_{\text{Drug\_BP}} 
-+ \beta_5 (X_{\text{FXS}} \times X_{\text{Drug\_BAY}}) 
-+ \beta_6 (X_{\text{FXS}} \times X_{\text{Drug\_BPN}}) 
-+ \beta_7 (X_{\text{FXS}} \times X_{\text{Drug\_BP}}) 
-+ b_i + \varepsilon_{ij}
+Y_{ij} = \beta_0 + \beta_1 X_{FXS} + \beta_2 X_{Drug\text{-}BAY} + \beta_3 X_{Drug\text{-}BPN} + \beta_4 X_{Drug\text{-}BP} + \beta_5 (X_{FXS} \times X_{Drug\text{-}BAY}) + \beta_6 (X_{FXS} \times X_{Drug\text{-}BPN}) + \beta_7 (X_{FXS} \times X_{Drug\text{-}BP}) + b_i + \varepsilon_{ij}
 $$
 
 ### Model Components
 
-- `$Y_{ij}$`: GSVA score for individual $i$ under condition $j$.
+- $Y_{ij}$: GSVA score for individual $i$ under condition $j$.
 
 - **Fixed Effects:**
-  - `$X_{\text{FXS}}$`: Disease status indicator (1 for **FXS**, 0 for **CTRL**).
-  - `$X_{\text{Drug\_BAY}}$`: BAY drug treatment indicator.
-  - `$X_{\text{Drug\_BPN}}$`: BPN drug treatment indicator.
-  - `$X_{\text{Drug\_BP}}$`: BP drug treatment indicator.
+  - $X_{FXS}$: Disease status indicator (1 for **FXS**, 0 for **CTRL**).
+  - $X_{Drug\text{-}BAY}$: BAY drug treatment indicator.
+  - $X_{Drug\text{-}BPN}$: BPN drug treatment indicator.
+  - $X_{Drug\text{-}BP}$: BP drug treatment indicator.
 
 - **Interaction Terms:**
-  - `$X_{\text{FXS}} \times X_{\text{Drug\_BAY}}$`: Interaction between FXS and BAY.
-  - `$X_{\text{FXS}} \times X_{\text{Drug\_BPN}}$`: Interaction between FXS and BPN.
-  - `$X_{\text{FXS}} \times X_{\text{Drug\_BP}}$`: Interaction between FXS and BP.
+  - $X_{FXS} \times X_{Drug\text{-}BAY}$: Interaction between FXS and BAY.
+  - $X_{FXS} \times X_{Drug\text{-}BPN}$: Interaction between FXS and BPN.
+  - $X_{FXS} \times X_{Drug\text{-}BP}$: Interaction between FXS and BP.
 
 - **Random Intercept:**
-  - `$b_i \sim \mathcal{N}(0, \tau^2)$`: Individual-specific random intercept.
+  - $b_i \sim \mathcal{N}(0, \tau^2)$: Individual-specific random intercept.
 
 - **Error Term:**
-  - `$\varepsilon_{ij} \sim \mathcal{N}(0, \sigma^2)$`: Residual error.
+  - $\varepsilon_{ij} \sim \mathcal{N}(0, \sigma^2)$: Residual error.
 
 This model helps estimate both the **main effects** and **interactions** between disease status and treatment, enabling evaluation of **disease-specific drug responses**.
-
-
-
-
-
-
-
 
 
 ### Hypothesis Testing: Drug Effects Compared to CTRL in the FXS Background
