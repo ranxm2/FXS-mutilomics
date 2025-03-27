@@ -70,7 +70,6 @@ $$
   - $\varepsilon_{ij} \sim \mathcal{N}(0, \sigma^2)$: Residual error term.
 
 This model allows us to estimate not only the **main effects** of disease and drug treatments but also **how drug responses differ between FXS and CTRL individuals**. Interaction terms capture whether the drug effect is **modified by disease status**, which is essential for understanding differential pathway responses.
-
 ### Hypothesis Testing: Drug Effects Compared to CTRL in the FXS Background
 
 ### **Combined Effect Hypothesis Testing**
