@@ -33,9 +33,7 @@ We compare the GSVA score across different disease situaion and the drug treatme
 
 And we use t-test to compare the GSVA score between different disease situation and drug treatment.
 
-![Naive Test](./images/GSVA_GOBP_CELL_CYCLE_PROCESS.png)
-
-
+<img src="./images/GSVA_GOBP_CELL_CYCLE_PROCESS.png" alt="Naive Test" width="50%">
 
 
 
