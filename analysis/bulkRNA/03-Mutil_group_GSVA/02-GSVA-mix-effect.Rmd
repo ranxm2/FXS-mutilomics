@@ -281,7 +281,7 @@ H_0: \beta_{\text{FXS}} + \beta_{\text{Drug}} + \beta_{\text{FXS:Drug}} = 0
 
 This tests whether the **net drug effect in the FXS group** is equivalent to the CTRL baseline (i.e., no rescue effect).
 
-C
+
 
 
 ```{r}
