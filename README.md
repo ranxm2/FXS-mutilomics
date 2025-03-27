@@ -37,7 +37,6 @@ And we use t-test to compare the GSVA score between different disease situation 
 
 
 
-
 ## Mixed-Effects Model
 
 We model **GSVA scores** using a **mixed-effects model**, incorporating **fixed effects** for disease status (FXS), drug treatments, and their **interactions**, along with a **random intercept** to account for individual-level variability:
@@ -68,8 +67,7 @@ $$
 - **Error Term:**
   - $\varepsilon_{ij} \sim \mathcal{N}(0, \sigma^2)$: Residual error term.
 
-This model enables us to estimate not only the **main effects** of disease and drug treatments but also **how drug responses differ between FXS and CTRL individuals**. The interaction terms are crucial for detecting whether the effect of each drug is **modified by disease status**, helping us understand disease-specific responses at the pathway level.
-
+This model enables us to estimate not only the **main effects** of disease and drug treatments but also **how drug responses differ between FXS and CTRL individuals**. The interaction terms help identify whether drug effects are **modified by disease status**, offering insights into disease-specific treatment responses.
 
 
 
