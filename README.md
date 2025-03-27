@@ -36,6 +36,9 @@ And we use t-test to compare the GSVA score between different disease situation 
 ![Naive Test](./images/GSVA_GOBP_CELL_CYCLE_PROCESS.png)
 
 
+
+
+
 ## Mixed-Effects Model
 
 We model **GSVA scores** using a **mixed-effects model**, incorporating **fixed effects** for disease status (FXS), drug treatments, and their **interactions**, along with a **random intercept** to account for individual-level variability:
@@ -52,27 +55,35 @@ Y_{ij} = \beta_0
 + b_i + \varepsilon_{ij}
 $$
 
-### **Model Components**
+### Model Components
 
-- $Y_{ij}$: GSVA score for individual $i$ under condition $j$.
+- `$Y_{ij}$`: GSVA score for individual $i$ under condition $j$.
 
 - **Fixed Effects:**
-  - $X_{\text{FXS}}$: Disease status indicator (1 for **FXS**, 0 for **CTRL**).
-  - $X_{\text{Drug\_BAY}}$: BAY drug treatment indicator.
-  - $X_{\text{Drug\_BPN}}$: BPN drug treatment indicator.
-  - $X_{\text{Drug\_BP}}$: BP drug treatment indicator.
-  - **Interaction Terms:**
-    - $X_{\text{FXS}} \times X_{\text{Drug\_BAY}}$: Interaction between FXS and BAY.
-    - $X_{\text{FXS}} \times X_{\text{Drug\_BPN}}$: Interaction between FXS and BPN.
-    - $X_{\text{FXS}} \times X_{\text{Drug\_BP}}$: Interaction between FXS and BP.
+  - `$X_{\text{FXS}}$`: Disease status indicator (1 for **FXS**, 0 for **CTRL**).
+  - `$X_{\text{Drug\_BAY}}$`: BAY drug treatment indicator.
+  - `$X_{\text{Drug\_BPN}}$`: BPN drug treatment indicator.
+  - `$X_{\text{Drug\_BP}}$`: BP drug treatment indicator.
+
+- **Interaction Terms:**
+  - `$X_{\text{FXS}} \times X_{\text{Drug\_BAY}}$`: Interaction between FXS and BAY.
+  - `$X_{\text{FXS}} \times X_{\text{Drug\_BPN}}$`: Interaction between FXS and BPN.
+  - `$X_{\text{FXS}} \times X_{\text{Drug\_BP}}$`: Interaction between FXS and BP.
 
 - **Random Intercept:**
-  - $b_i \sim \mathcal{N}(0, \tau^2)$: Individual-specific random intercept capturing baseline variability.
+  - `$b_i \sim \mathcal{N}(0, \tau^2)$`: Individual-specific random intercept.
 
 - **Error Term:**
-  - $\varepsilon_{ij} \sim \mathcal{N}(0, \sigma^2)$: Residual error term.
+  - `$\varepsilon_{ij} \sim \mathcal{N}(0, \sigma^2)$`: Residual error.
 
-This model enables us to estimate not only the **main effects** of disease and drug treatments but also **how drug responses differ between FXS and CTRL individuals**. The interaction terms help identify whether drug effects are **modified by disease status**, offering insights into disease-specific treatment responses.
+This model helps estimate both the **main effects** and **interactions** between disease status and treatment, enabling evaluation of **disease-specific drug responses**.
+
+
+
+
+
+
+
 
 
 ### Hypothesis Testing: Drug Effects Compared to CTRL in the FXS Background
