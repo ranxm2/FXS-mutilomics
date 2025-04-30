@@ -1,0 +1,492 @@
+---
+title: "GSVA BioDomain for mutil Group"
+author: "Ximing Ran"
+date: "2025-04-09"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: false
+  html_document:
+    # code_folding: hide
+    toc: true
+    toc_float: true
+hitheme: tomorrow
+highlighter: highlight.js
+
+---
+
+```{r setup, include=FALSE}
+# load libraries
+library(tidyverse)
+library(knitr)
+set.seed(2024)
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.path = "./results/01-BioDomain/Analysis_figure/"
+)
+
+theme_set(theme_bw() + theme(legend.position = "bottom"))
+knitr::kable(head(mtcars[, 1:4]), "simple")
+```
+
+```{r}
+library(tibble)
+library(tidyr)
+library(dplyr)
+library(rtracklayer)
+```
+
+
+
+```{r local_function_load}
+# load function from local files
+source(here::here("source", "DEG_functions.R"))
+source(here::here("source", "GSEA_analysis.R"))
+```
+
+\newpage
+
+# 1. Read the count data
+In this section, we will read the clean count data from the synaptosomes_bulkRNA folder.  We will read the data and merge them into a single table. 
+
+```{r load_bulkRNA_data}
+input_count <- read.csv(here::here("data", "bulkRNA",
+                                      "bulkRNA_counts_cleaned.csv"))
+counts <-  as.data.frame(input_count) %>% 
+  column_to_rownames(var = "gene")
+colnames(counts) <- gsub("_", "-", colnames(counts))
+
+
+# raw sample list
+sample_list_raw <- read.csv(here::here("data", "bulkRNA",
+                                      "sample_info_FXS.csv")) %>%
+                    mutate(condition = paste0(Diagosis, "_", Treatment),
+                           sample = gsub("_", "-", Sample.name))
+
+
+# Ensure the column names of counts exist in Sample.name
+new_colnames <- sample_list_raw$Label[match(colnames(counts), sample_list_raw$sample )]
+
+# Assign new column names
+colnames(counts) <- new_colnames
+
+
+# sort the columns by the colname
+condition_list <- data.frame(
+  group =sample_list_raw$condition
+)
+
+row.names(condition_list) <- sample_list_raw$Label
+
+counts<- counts[, rownames(condition_list)]
+
+gene_name_mapping<- readRDS(here::here("data","ref" ,"gene_name_mapping.rds"))
+```
+
+
+
+```{r DESeq2_analysis}
+# Init the result folder structure for the result
+result_folder_all = './results/04-BioDomain'
+result_folder = result_folder_all
+
+```
+
+
+\newpage
+
+# 2. Visualization for reuslt
+
+## (1) Sample information - PCA plot
+
+```{r Sample_PCA, fig.width=8, fig.height=6}
+figure_folder = result_folder
+# do PCA for counts data
+dds_obj <- DESeqDataSetFromMatrix(countData = counts,
+                                  colData = condition_list,
+                                  design = ~ group)
+vsd.obj <- varianceStabilizingTransformation(dds_obj, blind = TRUE)
+pcaData <- plotPCA(vsd.obj,  intgroup = c("group"), returnData = T)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+p <-ggplot(pcaData, aes(PC1, PC2, color=group)) +
+  geom_point(size=3) +
+  labs(x = paste0("PC1: ",percentVar[1],"% variance"),
+       y = paste0("PC2: ",percentVar[2],"% variance"),
+  ) +
+  stat_ellipse(level = 0.95)+
+  theme_bw() +
+  # theme_classic()+
+  theme(text = element_text(family = "Arial", colour = "black")) +
+  # scale_color_manual(values = assigned_colors) +
+  ggrepel::geom_text_repel(aes(label = name), color = "black")
+
+print(p)
+# ggsave("./results/01-Sample_info/01_sample_PCA_plot.pdf", p,width = 8, height = 6, units = "in", dpi = 300)
+# ggsave("./results/01-Sample_info/01_sample_PCA_plot.png", p,width = 8, height = 6, units = "in", dpi = 300)
+#   
+```
+
+## (2) Sample information - Distance heatmap
+
+```{r Sample_dis_Heatmap, fig.width=8, fig.height=6}
+ # Now apply variance stabilizing transformation
+ sampleDists <- dist(t(assay(vsd.obj)))
+ sampleDistMatrix <- as.matrix( sampleDists )
+ rownames(sampleDistMatrix) <- paste( vsd.obj$group )
+ colors <- colorRampPalette( rev(RColorBrewer::brewer.pal(9, "Blues")) )(255)
+ p <- pheatmap::pheatmap(sampleDistMatrix,
+                         clustering_distance_rows = sampleDists,
+                         clustering_distance_cols = sampleDists,
+                         col = colors) 
+print(p)
+
+#  ggsave("./results/01-Sample_info/02_sample_distance_heatmap.pdf", p,width = 8, height = 6, units = "in", dpi = 300)
+# ggsave("./results/01-Sample_info/02_sample_distance_heatmap.png",
+#        p, width = 8, height = 6, units = "in", dpi = 300)
+
+```
+
+\newpage
+
+# 3. GSEA analysis and BioDomain analysis
+
+### (1) GSEA analysis for AD vs CTRL
+
+```{r GSEA_analysis_AD}
+# result_folder= "./results/04-BioDomain"
+# result_df <- perform_gsea_analysis(counts, condition_list, 
+#                                    ref_group = "CTRL_Veh_0", 
+#                                    compare_group = "AD_Veh_0")
+# write.csv(result_df, file.path(result_folder, "GSEA_AD_vs_CTRL.csv"))
+```
+
+### (2) GSEA analysis for AD_Drug vs CTRL
+
+```{r GSEA_analysis_AD_Drug}
+# result_df <- perform_gsea_analysis(counts, condition_list, 
+#                                    ref_group = "CTRL_Veh_0", 
+#                                    compare_group = "AD_Veh_10")
+# write.csv(result_df, file.path(result_folder, "GSEA_AD_Drug_vs_CTRL.csv"))
+```
+
+
+### (3) GSEA analysis for CTRL_Drug vs CTRL
+
+```{r GSEA_analysis_CTRL_Drug}
+# result_df <- perform_gsea_analysis(counts, condition_list, 
+#                                    ref_group = "CTRL_Veh_0", 
+#                                    compare_group = "CTRL_Veh_10")
+# write.csv(result_df, file.path(result_folder, "GSEA_CTRL_Drug_vs_CTRL.csv"))
+
+```
+
+
+\newpage
+
+# 4. BioDomain analysis
+
+```{r}
+ref_BioDomain <- read.csv(here::here("data", "ref", "BioDomain_Reference_2025_04_01.csv"))
+
+result_AD <- read.csv(file.path(result_folder, "GSEA_AD_vs_CTRL.csv"), row.names = 1)
+result_AD <- result_AD %>% mutate(AD_NES = NES, AD_pval = p.adjust) %>% 
+  dplyr::select(ID,Description, AD_NES, AD_pval)
+
+
+result_AD_Drug <- read.csv(file.path(result_folder, "GSEA_AD_Drug_vs_CTRL.csv"), row.names = 1)
+result_AD_Drug <- result_AD_Drug %>% mutate(AD_Drug_NES = NES, AD_Drug_pval = p.adjust) %>% 
+  dplyr::select(ID,Description, AD_Drug_NES, AD_Drug_pval)
+
+result_CTRL_Drug <- read.csv(file.path(result_folder, "GSEA_CTRL_Drug_vs_CTRL.csv"), row.names = 1)
+result_CTRL_Drug <- result_CTRL_Drug %>% mutate(CTRL_Drug_NES = NES, CTRL_Drug_pval = p.adjust) %>% 
+  dplyr::select(ID,Description, CTRL_Drug_NES, CTRL_Drug_pval)
+
+```
+
+
+
+# 5. Load the GSVA analysis
+
+```{r make_reference_for_GSVA}
+# 
+# # Install if not already
+# if (!requireNamespace("msigdbr", quietly = TRUE)) {
+#   install.packages("msigdbr")
+# }
+# library(msigdbr)
+# 
+# # Load all human GO sets (C5 category)
+# msig_go <- msigdbr(species = "Homo sapiens", category = "C5")
+# 
+# # Extract and keep unique pairs of gene set name and GO ID
+# go_pairs <- unique(msig_go[, c("gs_cat","gs_subcat","gs_name", "gs_exact_source")])
+# 
+# 
+# # save the misi_go to data/ref folder with here::
+# write.csv(go_pairs, here::here("data","ref","GO_reference_2025_04_02.csv"))
+
+```
+
+
+
+
+
+```{r}
+# load the GSVA analysis result
+result_GSVA <- read.csv(here::here("analysis", "03-Mutil_group_GSVA", "results","02-GSVA","01_GSVA_matrix.csv"), row.names = 1)
+
+# group level average GSVA score
+group_list <- c("AD_Veh_0", "AD_Veh_10", "CTRL_Veh_0", "CTRL_Veh_10")
+condition_list_label <- condition_list %>% filter(group %in% group_list)
+
+result_GSVA <- result_GSVA [, rownames(condition_list_label)]
+
+
+result_GSVA_group <- tibble()
+row.names(result_GSVA) <- row.names(result_GSVA)
+
+
+
+
+
+library(dplyr)
+library(tibble)
+
+# Initialize an empty tibble to store group averages
+result_GSVA_group <- matrix(NA, 
+                            nrow = nrow(result_GSVA), 
+                            ncol = length(group_list),
+                            dimnames = list(rownames(result_GSVA), group_list)) 
+
+
+# Loop through each group and calculate the average GSVA score
+for (grp in group_list) {
+  # Get sample names for the current group
+  sample_names <- condition_list_label %>%
+    filter(group == grp) %>%
+    # trun rownames to sample name
+    rownames()
+  
+  # Subset the GSVA matrix for the samples in this group
+  group_data <- result_GSVA[, sample_names, drop = FALSE]
+  
+  # Compute the row means (i.e., average GSVA score per gene/pathway)
+  avg_scores <- rowMeans(group_data, na.rm = TRUE)
+  
+  # Add to the result table
+   result_GSVA_group[, grp] <-  avg_scores
+}
+
+
+
+
+# # Match based on the GO term text
+# result_GSVA_group <-as.data.frame(result_GSVA_group)
+# result_GSVA_group$ID <- rownames(result_GSVA_group)
+# result_GSVA_group$ID <- gsub("_", " ", result_GSVA_group$ID)
+# 
+# # turn id to be lower case
+# result_GSVA_group$ID <- tolower(result_GSVA_group$ID)
+# result_GSVA_group$ID <- gsub("gobp ", "", result_GSVA_group$ID)
+# result_GSVA_group$ID <- gsub("gocc ", "", result_GSVA_group$ID)
+# 
+# ref_BioDomain <- read.csv(here::here("data", "ref", "BioDomain_Reference_2025_04_01.csv"))
+# ref_BioDomain$ID <- ref_BioDomain$GOterm_Name
+# ref_BioDomain$ID <- tolower(ref_BioDomain$ID)
+# 
+# df_BioDomain <- left_join(ref_BioDomain,result_GSVA_group, by =  "ID")
+
+
+# result_GSVA_group <- merge(result_GSVA_group, go_ref, by.x = "row.names", by.y = "row.names", all.x = TRUE)
+# go_ref <- read.csv(here::here("data","ref","GO_reference_2025_04_02.csv"), row.names = 1)
+# rownames(go_ref) <- go_ref$gs_name 
+
+
+
+# merge the BioDomain with the GSVA result
+result_GSVA_group_df <- as.data.frame(result_GSVA_group)
+# result_GSVA_group_df <- left_join(result_GSVA_group_df ,ref_pairs , by.x =  "ID", by.y = "gs_name", all.x = TRUE)
+
+
+
+go_ref <- read.csv(here::here("data","ref","GO_reference_2025_04_02.csv"), row.names = 1)
+ref_BioDomain <- read.csv(here::here("data", "ref", "BioDomain_Reference_2025_04_01.csv"))
+
+
+# check if the GO_ID is unique in the ref_BioDomain
+length(unique(ref_BioDomain$GO_ID)) == nrow(ref_BioDomain)
+
+
+ref_BioDomain_go <- merge(
+  go_ref,
+  ref_BioDomain,
+  by.x = "gs_exact_source",
+  by.y = "GO_ID",
+  all.x = TRUE
+)
+
+dim(ref_BioDomain_go)
+head(ref_BioDomain_go)
+
+# chcek the NA in the Biodomain
+sum(is.na(ref_BioDomain_go$Biodomain))
+
+# fill the NA with "Unknown"
+ref_BioDomain_go$Biodomain[is.na(ref_BioDomain_go$Biodomain)] <- "Unknown"
+ref_pairs <- ref_BioDomain_go[, c("gs_name", "Biodomain")]
+
+
+result_GSVA_group_df$ID <- rownames(result_GSVA_group_df)
+result_GSVA_group_df <- left_join(
+  result_GSVA_group_df,
+  ref_pairs,
+  by = c("ID" = "gs_name")
+)
+# fill the NA with "Unknown"
+result_GSVA_group_df$Biodomain[is.na(result_GSVA_group_df$Biodomain)] <- "Unknown"
+
+```
+
+## (1) Ridge plot for GSVA score
+```{r BioDomain_Ridge,fig.width=24, fig.height=20}
+
+library(tidyverse)
+library(ggridges)
+library(ggdist)
+
+# Reshape data to long format
+df_long <- result_GSVA_group_df %>%
+  pivot_longer(
+    cols = c( CTRL_Veh_0, CTRL_Veh_10,AD_Veh_0, AD_Veh_10),
+    names_to = "Group",
+    values_to = "GSVA_Score"
+  ) %>%
+  filter(!is.na(GSVA_Score)) %>%
+  filter(Biodomain != "Unknown")
+
+
+
+
+df_long$group <- fct_recode(df_long$Group,
+  "CTRL_Veh" = "CTRL_Veh_0",
+  "CTRL_10" = "CTRL_Veh_10",
+  "AD_Veh" = "AD_Veh_0",
+  "AD_10" = "AD_Veh_10"
+)
+
+
+df_long$group <- factor(df_long$group, levels = c( "AD_10","AD_Veh","CTRL_10","CTRL_Veh" ))
+
+# Ridge plot
+p <- ggplot(df_long, aes(x = GSVA_Score, y = group, fill = group)) +
+  geom_density_ridges(alpha = 0.7, scale = 1.2, rel_min_height = 0.01) +
+  facet_wrap(~ Biodomain, scales = "free_y") +
+  labs(title = "Ridge Plot of GSVA Scores by Biodomain and Group",
+       x = "GSVA Score", y = "Group") +
+  theme_bw() +
+  theme(legend.position = "none",
+        strip.text = element_text(size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10))
+
+print(p)
+
+
+ggsave(file.path(result_folder, "GSVA_Ridge_plot_v2.png"), p, width = 24, height = 20, units = "in", dpi = 300)
+ggsave(file.path(result_folder, "GSVA_Ridge_plot_v2.pdf"), p, width = 24, height = 20, units = "in", dpi = 300)
+
+```
+\newpage
+## (2) Raincloud plot for GSVA score
+
+```{r BioDomain_Cloud, fig.width=24, fig.height=20}
+
+
+## (2) Raincloud plot for GSVA score (suppressing verbose output)
+suppressWarnings({
+  p <- ggplot(df_long, aes(x = GSVA_Score, y = group, fill = group)) +
+    stat_halfeye(
+      adjust = 0.6,
+      justification = -0.3,
+      .width = 0,
+      point_colour = NA
+    ) +
+    geom_boxplot(
+      width = 0.15,
+      outlier.shape = NA,
+      alpha = 0.4
+    ) +
+    geom_jitter(
+      aes(color = group),
+      width = 0.001,
+      size = 0.8,
+      alpha = 0.4
+    ) +
+    facet_wrap(~ Biodomain, scales = "free_y") +
+    labs(
+      title = "GSVA Distribution per Biodomain (Raincloud Plot)",
+      x = "GSVA Score", y = NULL
+    ) +
+    theme_bw() +
+    theme(
+      legend.position = "none",
+      strip.text = element_text(size = 13),
+      axis.text.y = element_text(size = 11),
+      axis.text.x = element_text(size = 10)
+    )
+})
+
+
+
+print(p)
+
+ggsave(file.path(result_folder, "GSVA_cloud_plot_v2.png"),  width = 24, height = 20, units = "in", dpi = 300)
+ggsave(file.path(result_folder, "GSVA_cloud_plot_v2.pdf"),  width = 24, height = 20, units = "in", dpi = 300)
+
+
+```
+
+\newpage
+## (3) Rug and density plot for GSVA score
+
+```{r BioDomain_Rug, fig.width=24, fig.height=20}
+## (2) Ridge + Rug plot for GSVA score
+
+library(ggridges)
+
+p <- ggplot(df_long, aes(x = GSVA_Score, y = group, fill = group)) +
+  geom_density_ridges(scale = 1.2, alpha = 0.6, color = "white") +
+  geom_rug(aes(color = group), sides = "b", alpha = 0.4, size = 0.5) +
+  facet_wrap(~ Biodomain, scales = "free_y") +
+  labs(
+    title = "GSVA Distribution per Biodomain (Ridge + Rug Plot)",
+    x = "GSVA Score", y = NULL
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13),
+    axis.text.y = element_text(size = 11),
+    axis.text.x = element_text(size = 10)
+  )
+
+print(p)
+
+ggsave(file.path(result_folder, "GSVA_ridge_rug_plot_v2.png"), width = 24, height = 20, units = "in", dpi = 300)
+ggsave(file.path(result_folder, "GSVA_ridge_rug_plot_v2.pdf"), width = 24, height = 20, units = "in", dpi = 300)
+
+
+
+```
+\newpage
+# Session information
+```{r}
+sessionInfo()
+```
+

@@ -1,0 +1,519 @@
+---
+title: "BioDomain analysis for FXS and CTRL"
+author: "Ximing Ran"
+date: "2025-04-30"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: false
+  html_document:
+    # code_folding: hide
+    toc: true
+    toc_float: true
+hitheme: tomorrow
+highlighter: highlight.js
+
+---
+
+```{r setup, include=FALSE}
+# load libraries
+library(tidyverse)
+library(knitr)
+set.seed(2024)
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.path = "./results/01-BioDomain/Analysis_figure/"
+)
+
+theme_set(theme_bw() + theme(legend.position = "bottom"))
+knitr::kable(head(mtcars[, 1:4]), "simple")
+```
+
+```{r}
+library(tibble)
+library(tidyr)
+library(dplyr)
+library(rtracklayer)
+```
+
+```{r local_function_load}
+# load function from local files
+source(here::here("source", "DEG_functions.R"))
+source(here::here("source", "GSEA_analysis.R"))
+
+# Init the result folder structure for the result
+result_folder_all = './results/01-BioDomain'
+result_folder = result_folder_all
+
+dir.create(result_folder, showWarnings = FALSE)
+
+```
+
+\newpage
+
+
+# 1. BioDomain analysis
+
+## Load the GSVA analysis
+
+```{r make_reference_for_GSVA}
+# 
+# # Install if not already
+# if (!requireNamespace("msigdbr", quietly = TRUE)) {
+#   install.packages("msigdbr")
+# }
+# library(msigdbr)
+# 
+# # Load all human GO sets (C5 category)
+# msig_go <- msigdbr(species = "Homo sapiens", category = "C5")
+# 
+# # Extract and keep unique pairs of gene set name and GO ID
+# go_pairs <- unique(msig_go[, c("gs_cat","gs_subcat","gs_name", "gs_exact_source")])
+# 
+# 
+# # save the misi_go to data/ref folder with here::
+# write.csv(go_pairs, here::here("data","ref","GO_reference_2025_04_02.csv"))
+
+```
+
+
+
+# 2.result for C03 vs A33
+
+```{r}
+# load the GSVA analysis result
+result_GSVA <- read.csv(here::here("analysis", "bulkRNA", "03-Mutil_group_GSVA", "results","02-GSVA","01_GSVA_matrix.csv"), row.names = 1)
+colnames(result_GSVA) <-  gsub("\\.","_",colnames(result_GSVA) )
+colnames(result_GSVA) <- sub("^X", "", colnames(result_GSVA))
+
+# group level average GSVA score
+group_list <- c("CTRL_VEH", "CTRL_BPN","CTRL_BP","CTRL_BAY", 
+                "FXS_VEH", "FXS_BPN","FXS_BP","FXS_BAY")
+
+# raw sample list
+sample_list_raw <- read.csv(here::here("data", "bulkRNA",
+                                      "sample_info_FXS.csv")) %>%
+                    mutate(condition = paste0(Diagosis, "_", Treatment),
+                           sample = gsub("-", "_", Sample_ID ))
+
+# only keep the rows in the group list
+sample_list_raw <- sample_list_raw %>%
+  filter(condition %in% group_list) %>%
+  mutate(Label = gsub("-", "_", Label ))
+
+result_GSVA <- result_GSVA %>%
+    dplyr::select(contains(sample_list_raw$sample))
+
+# sort the columns by the colname
+condition_list <- data.frame(
+  group =sample_list_raw$condition
+)
+row.names(condition_list) <- sample_list_raw$sample
+
+
+condition_list_label <- condition_list 
+
+result_GSVA <- result_GSVA [, rownames(condition_list_label)]
+
+result_GSVA_group <- tibble()
+# row.names(result_GSVA) <- row.names(result_GSVA)
+
+
+library(dplyr)
+library(tibble)
+
+# Initialize an empty tibble to store group averages
+result_GSVA_group <- matrix(NA, 
+                            nrow = nrow(result_GSVA), 
+                            ncol = length(group_list),
+                            dimnames = list(rownames(result_GSVA), group_list)) 
+
+
+# Loop through each group and calculate the average GSVA score
+for (grp in group_list) {
+  # Get sample names for the current group
+  sample_names <- condition_list_label %>%
+    filter(group == grp) %>%
+    # trun rownames to sample name
+    rownames()
+  
+  # Subset the GSVA matrix for the samples in this group
+  group_data <- result_GSVA[, sample_names, drop = FALSE]
+  
+  # Compute the row means (i.e., average GSVA score per gene/pathway)
+  avg_scores <- rowMeans(group_data, na.rm = TRUE)
+  
+  # Add to the result table
+   result_GSVA_group[, grp] <-  avg_scores
+}
+
+
+
+
+# # Match based on the GO term text
+# result_GSVA_group <-as.data.frame(result_GSVA_group)
+# result_GSVA_group$ID <- rownames(result_GSVA_group)
+# result_GSVA_group$ID <- gsub("_", " ", result_GSVA_group$ID)
+# 
+# # turn id to be lower case
+# result_GSVA_group$ID <- tolower(result_GSVA_group$ID)
+# result_GSVA_group$ID <- gsub("gobp ", "", result_GSVA_group$ID)
+# result_GSVA_group$ID <- gsub("gocc ", "", result_GSVA_group$ID)
+# 
+# ref_BioDomain <- read.csv(here::here("data", "ref", "BioDomain_Reference_2025_04_01.csv"))
+# ref_BioDomain$ID <- ref_BioDomain$GOterm_Name
+# ref_BioDomain$ID <- tolower(ref_BioDomain$ID)
+# 
+# df_BioDomain <- left_join(ref_BioDomain,result_GSVA_group, by =  "ID")
+
+
+# result_GSVA_group <- merge(result_GSVA_group, go_ref, by.x = "row.names", by.y = "row.names", all.x = TRUE)
+# go_ref <- read.csv(here::here("data","ref","GO_reference_2025_04_02.csv"), row.names = 1)
+# rownames(go_ref) <- go_ref$gs_name 
+
+
+
+# merge the BioDomain with the GSVA result
+result_GSVA_group_df <- as.data.frame(result_GSVA_group)
+# result_GSVA_group_df <- left_join(result_GSVA_group_df ,ref_pairs , by.x =  "ID", by.y = "gs_name", all.x = TRUE)
+
+
+ref_BioDomain <- read.csv(here::here("data", "ref", "biodomain_results_0429.csv"))
+
+dim(ref_BioDomain)
+
+library(dplyr)
+library(tibble)
+
+result_GSVA_group_df2 <- result_GSVA_group_df %>%
+  rownames_to_column("pathway")
+
+result_GSVA_group_df3 <- left_join(ref_BioDomain,result_GSVA_group_df2,  by = "pathway")
+
+
+```
+
+## (1) Ridge plot for GSVA score
+```{r BioDomain_Ridge,fig.width=24, fig.height=20}
+result_folder= "./results/01-BioDomain"
+library(tidyverse)
+library(ggridges)
+library(ggdist)
+
+# Reshape data to long format
+df_long <- result_GSVA_group_df3 %>%
+  # pivot_longer(c("CTRL_VEH", "CTRL_BPN","CTRL_BP","CTRL_BAY", 
+  #               "FXS_VEH", "FXS_BPN","FXS_BP","FXS_BAY"),
+               
+  pivot_longer(c("CTRL_VEH", "FXS_VEH", "FXS_BPN","FXS_BP","FXS_BAY"),
+    names_to = "Group",
+    values_to = "GSVA_Score"
+  ) %>%
+  filter(!is.na(GSVA_Score)) %>%
+  filter(Biodomain != "Unknown")
+
+
+
+
+df_long$group <- df_long$Group
+# 
+# df_long$group <- factor(df_long$group, levels = c("CTRL_VEH", "CTRL_BPN","CTRL_BP","CTRL_BAY", 
+#                 "FXS_VEH", "FXS_BPN","FXS_BP","FXS_BAY"))
+df_long$group <- factor(df_long$group, levels = c(
+             "FXS_BPN","FXS_BP","FXS_BAY",   "FXS_VEH", "CTRL_VEH" ))
+# reverse the order of the group
+
+
+# Ridge plot
+p <- ggplot(df_long, aes(x = GSVA_Score, y = group, fill = group)) +
+  geom_density_ridges(alpha = 0.7, scale = 1.2, rel_min_height = 0.01) +
+  facet_wrap(~ Biodomain, scales = "free_y") +
+  labs(title = "Ridge Plot of GSVA Scores by Biodomain and Group",
+       x = "GSVA Score", y = "Group") +
+  theme_bw() +
+  theme(legend.position = "none",
+        strip.text = element_text(size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10))
+
+print(p)
+
+ggsave(file.path(result_folder, "GSVA_Ridge_plot.png"), p, width = 24, height = 20, units = "in", dpi = 300)
+ggsave(file.path(result_folder, "GSVA_Ridge_plot.pdf"), p, width = 24, height = 20, units = "in", dpi = 300)
+
+```
+\newpage
+## (2) Raincloud plot for GSVA score
+
+
+```{r BioDomain_Raincloud_v2, fig.width=24, fig.height=20}
+library(ggplot2)
+library(ggdist)      # for stat_halfeye
+# if you prefer ggridges you can swap in geom_density_ridges()
+
+# — build the plot, removing the `.width = 0` which suppresses the slab entirely,
+#   and adding `slab_alpha` so you see the half-eye distribution —
+p <- ggplot(df_long, aes(x = GSVA_Score, y = group, fill = group)) +
+  stat_halfeye(
+    adjust      = 0.6,
+    justification = -0.3,   # you can tweak this if you want the slab offset differently
+    .width      = 0.8,      # show an 80% density slab (or use c(0.5, 0.8, 0.95) for multiple intervals)
+    slab_alpha = 0.4,       # make the slab semi-transparent
+    point_colour = NA       # no points on the half-eye
+  ) +
+  geom_boxplot(
+    width         = 0.15,
+    outlier.shape = NA,
+    alpha         = 0.4
+  ) +
+  geom_jitter(
+    aes(color = group),
+    width = 0.001,
+    size  = 0.8,
+    alpha = 0.4
+  ) +
+  facet_wrap(~ Biodomain, scales = "free_y") +
+  labs(
+    title = "GSVA Distribution per Biodomain (Raincloud Plot)",
+    x     = "GSVA Score",
+    y     = NULL
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.text      = element_text(size = 13),
+    axis.text.y     = element_text(size = 11),
+    axis.text.x     = element_text(size = 10)
+  )
+
+# — now explicitly print it —
+print(p)
+
+```
+
+```{r BioDomain_Cloud, fig.width=24, fig.height=20}
+## (2) Raincloud plot for GSVA score (suppressing verbose output)
+suppressWarnings({
+  p <- ggplot(df_long, aes(x = GSVA_Score, y = group, fill = group)) +
+    stat_halfeye(
+      adjust = 0.6,
+      justification = -0.3,
+      .width = 0,
+      point_colour = NA
+    ) +
+    geom_boxplot(
+      width = 0.15,
+      outlier.shape = NA,
+      alpha = 0.4
+    ) +
+    geom_jitter(
+      aes(color = group),
+      width = 0.001,
+      size = 0.8,
+      alpha = 0.4
+    ) +
+    facet_wrap(~ Biodomain, scales = "free_y") +
+    labs(
+      title = "GSVA Distribution per Biodomain (Raincloud Plot)",
+      x = "GSVA Score", y = NULL
+    ) +
+    theme_bw() +
+    theme(
+      legend.position = "none",
+      strip.text = element_text(size = 13),
+      axis.text.y = element_text(size = 11),
+      axis.text.x = element_text(size = 10)
+    )
+})
+
+
+
+print(p)
+
+ggsave(file.path(result_folder, "GSVA_cloud_plot.png"),  width = 24, height = 20, units = "in", dpi = 300)
+ggsave(file.path(result_folder, "GSVA_cloud_plot.pdf"),  width = 24, height = 20, units = "in", dpi = 300)
+
+
+```
+
+\newpage
+## (3) Rug and density plot for GSVA score
+
+```{r BioDomain_Rug, fig.width=24, fig.height=20}
+## (2) Ridge + Rug plot for GSVA score
+
+library(ggridges)
+
+p <- ggplot(df_long, aes(x = GSVA_Score, y = group, fill = group)) +
+  geom_density_ridges(scale = 1.2, alpha = 0.6, color = "white") +
+  geom_rug(aes(color = group), sides = "b", alpha = 0.4, size = 0.5) +
+  facet_wrap(~ Biodomain, scales = "free_y") +
+  labs(
+    title = "GSVA Distribution per Biodomain (Ridge + Rug Plot)",
+    x = "GSVA Score", y = NULL
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13),
+    axis.text.y = element_text(size = 11),
+    axis.text.x = element_text(size = 10)
+  )
+
+print(p)
+
+ggsave(file.path(result_folder, "GSVA_ridge_rug_plot.png"), width = 24, height = 20, units = "in", dpi = 300)
+ggsave(file.path(result_folder, "GSVA_ridge_rug_plot.pdf"), width = 24, height = 20, units = "in", dpi = 300)
+
+
+
+```
+\newpage
+
+# 3. Spider plot for GSVA score
+
+```{r BioDomain_Spider, fig.width=12, fig.height=10}
+# install.packages("fmsb")   # if needed
+library(dplyr)
+library(tidyr)
+library(fmsb)
+
+# 1. Summarize mean GSVA per group × Biodomain
+summary_df <- df_long %>%
+  group_by(group, Biodomain) %>%
+  summarise(meanGSVA = mean(GSVA_Score, na.rm = TRUE), .groups = "drop")
+
+# 2. Pivot to wide: one row per group
+wide_df <- summary_df %>%
+  pivot_wider(names_from  = Biodomain,
+              values_from = meanGSVA)
+
+# 3. Create max/min rows for fmsb
+max_vals <- apply(wide_df[,-1], 2, max, na.rm = TRUE)
+min_vals <- apply(wide_df[,-1], 2, min, na.rm = TRUE)
+radar_data <- rbind(max_vals, min_vals, wide_df[,-1])
+rownames(radar_data) <- c("Max", "Min", wide_df$group)
+
+# 4. Plot
+group_names   <- wide_df$group
+n_groups      <- length(group_names)
+# colors_border <- grDevices::rainbow(n_groups)
+colors_border <- c("red","darkorange","#8FBC8B","blue","magenta")
+
+
+
+fmsb::radarchart(
+  radar_data,
+  axistype   = 1,            # draw axis labels
+  pcol       = colors_border,
+  # no fill polygons:
+  pfcol      = NA,
+  plwd       = 2,
+  plty       = 1,
+  cglcol     = "grey",
+  cglty      = 1,
+  axislabcol = "grey20",
+  caxislabels = round(seq(min(min_vals), max(max_vals), length.out = 5), 2),
+  vlcex      = 0.8,          # label text size
+  title      = "Mean GSVA Score per Biodomain by Group"
+)
+
+legend(
+  x      = "topright",
+  legend = group_names,
+  bty    = "n",
+  pch    = 20,
+  col    = colors_border,
+  text.col = "grey20",
+  cex    = 0.8,
+  pt.cex = 1.5
+)
+
+
+# Paths
+out_png <- file.path(result_folder, "GSVA_spider_plot.png")
+out_pdf <- file.path(result_folder, "GSVA_spider_plot.pdf")
+
+# 1. PNG device (300 dpi, 24×20 inches)
+png(filename = out_png,
+    width    = 12, height = 10,
+    units    = "in", res    = 300)
+
+# … your radar chart here …
+fmsb::radarchart(
+  radar_data,
+  axistype   = 1,
+  pcol       = colors_border,
+  pfcol      = NA,
+  plwd       = 2,
+  plty       = 1,
+  cglcol     = "grey",
+  cglty      = 1,
+  axislabcol = "grey20",
+  caxislabels= round(seq(min(min_vals),
+                         max(max_vals),
+                         length.out=5), 2),
+  vlcex      = 0.8,
+  title      = "Mean GSVA Score per Biodomain by Group"
+)
+legend(
+  x      = "topright",
+  legend = group_names,
+  bty    = "n",
+  pch    = 20,
+  col    = colors_border,
+  text.col = "grey20",
+  cex    = 0.8,
+  pt.cex = 1.5
+)
+
+dev.off()  # close PNG
+
+# 2. PDF device (vector, 24×20 inches)
+pdf(file   = out_pdf,
+    width  = 12, height = 10)
+
+# … repeat the exact same plotting calls …
+fmsb::radarchart(
+  radar_data,
+  axistype   = 1,
+  pcol       = colors_border,
+  pfcol      = NA,
+  plwd       = 2,
+  plty       = 1,
+  cglcol     = "grey",
+  cglty      = 1,
+  axislabcol = "grey20",
+  caxislabels= round(seq(min(min_vals),
+                         max(max_vals),
+                         length.out=5), 2),
+  vlcex      = 0.8,
+  title      = "Mean GSVA Score per Biodomain by Group"
+)
+legend(
+  x      = "topright",
+  legend = group_names,
+  bty    = "n",
+  pch    = 20,
+  col    = colors_border,
+  text.col = "grey20",
+  cex    = 0.8,
+  pt.cex = 1.5
+)
+
+dev.off()  # close PDF
+
+
+```
+
+
+\newpage
+# Session information
+```{r}
+sessionInfo()
+```
+
