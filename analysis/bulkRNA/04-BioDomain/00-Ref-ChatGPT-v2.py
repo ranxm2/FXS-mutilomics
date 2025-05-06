@@ -1,8 +1,12 @@
 from openai import OpenAI
 import openai
 
+# read the API key from the OpenAI_APi.txt file
+with open("../../../data/ref/OpenAI_API.txt", "r") as f:
+    api_key = f.read()
+    
 client = OpenAI(
-  api_key="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"
+  api_key=api_key
 )
 
 import pandas as pd
