@@ -1,7 +1,6 @@
 # File
 data/
 
-
 # History files
 .Rhistory
 .Rapp.history
@@ -51,4 +50,5 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
 .env
