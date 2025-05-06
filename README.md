@@ -31,9 +31,7 @@ We compare the GSVA score across different disease situaion and the drug treatme
 
 ![GSVA score](./images/GSVA.png)
 
-And we use t-test to compare the GSVA score between different disease situation and drug treatment.
-
-<img src="./images/GSVA_GOBP_CELL_CYCLE_PROCESS.png" alt="Naive Test" width="50%">
+And we use t-test to compare the GSVA score between different disease situation 
 
 
 
@@ -81,3 +79,23 @@ H_0: \beta_{\text{FXS}} + \beta_{\text{Drug}} + \beta_{\text{FXS:Drug}} = 0
 $$
 
 This hypothesis evaluates whether the **overall effect of a drug in FXS individuals** is statistically indistinguishable from the CTRL group receiving vehicle treatment — effectively testing for a **lack of rescue effect** in the FXS condition.
+
+
+# BioDomain results
+
+## LLM labeling
+
+We used a **large language model (LLM)** to label the BioDomain for each GO term. The LLM was trained on a diverse dataset of biological literature, enabling it to understand the context and relationships between different biological entities. The model was fine-tuned to recognize and categorize GO terms based on their functional annotations.
+
+## Mixed-Effects Model result on BioDomain
+We aggregated the mixed-effects model results across all BioDomains, focusing on the **combined effect** of disease status and drug treatment. We first selet the GO term with signficant on the disease effect (FXS). Then we used the **Benjamini-Hochberg procedure** to control the false discovery rate (FDR) at a threshold of 0.05. Then we consider the difference with the interaction term (FXS:Drug) to see if the drug treatment can rescue the disease effect. The results are also visualized in the following figure.
+
+
+
+<img src="./images/Bubble_FXS.png" alt="Naive Test" width="80%">
+
+<img src="./images/Bubble_FXS_+_BP_Rescue.png" alt="Naive Test" width="80%">
+
+<img src="./images/Bubble_FXS_+_BPN_Rescue.png" alt="Naive Test" width="80%">
+
+<img src="./images/Bubble_FXS_+_BAY_Rescue.png" alt="Naive Test" width="80%">
