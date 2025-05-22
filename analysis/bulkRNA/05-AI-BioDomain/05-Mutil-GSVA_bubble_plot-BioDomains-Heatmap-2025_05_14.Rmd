@@ -1,0 +1,844 @@
+---
+title: "BioDomain analysis for FXS and CTRL"
+author: "Ximing Ran"
+date: "2025-05-07"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: false
+  html_document:
+    # code_folding: hide
+    toc: true
+    toc_float: true
+hitheme: tomorrow
+highlighter: highlight.js
+
+---
+
+```{r setup, include=FALSE}
+# load libraries
+library(tidyverse)
+library(knitr)
+set.seed(2024)
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.path = "./results/05-Heatmap/Analysis_figure/"
+)
+
+theme_set(theme_bw() + theme(legend.position = "bottom"))
+knitr::kable(head(mtcars[, 1:4]), "simple")
+```
+
+```{r}
+library(tibble)
+library(tidyr)
+library(dplyr)
+library(rtracklayer)
+```
+
+```{r local_function_load}
+# load function from local files
+source(here::here("source", "DEG_functions.R"))
+source(here::here("source", "GSEA_analysis.R"))
+
+# Init the result folder structure for the result
+result_folder_all = './results/01-BioDomain'
+result_folder = result_folder_all
+
+dir.create(result_folder, showWarnings = FALSE)
+
+```
+
+\newpage
+
+
+# 1. BioDomain analysis
+
+## Load the GSVA analysis
+
+```{r make_reference_for_GSVA}
+# 
+# # Install if not already
+# if (!requireNamespace("msigdbr", quietly = TRUE)) {
+#   install.packages("msigdbr")
+# }
+# library(msigdbr)
+# 
+# # Load all human GO sets (C5 category)
+# msig_go <- msigdbr(species = "Homo sapiens", category = "C5")
+# 
+# # Extract and keep unique pairs of gene set name and GO ID
+# go_pairs <- unique(msig_go[, c("gs_cat","gs_subcat","gs_name", "gs_exact_source")])
+# 
+# 
+# # save the misi_go to data/ref folder with here::
+# write.csv(go_pairs, here::here("data","ref","GO_reference_2025_04_02.csv"))
+
+```
+
+
+
+# 2.Load GSVA result
+
+```{r load_data}
+data <-  read.csv("./results/01-BioDomain/target_with_biodomain_0429.csv")
+data <-  data %>%
+  dplyr::select(
+    pathway,
+    # starts_with("beta_"),
+    padj_FXS,
+    Biodomain
+  )
+
+all_result <-  read.csv(here::here("analysis", "bulkRNA" , "03-Mutil_group_GSVA" ,
+                                   "results","03-Mix-effect" ,"mixed_model_results_all.csv"))
+
+library(dplyr)
+
+
+all_result_padj <- all_result %>%
+  # 1) FDR‐correct every p_… column, naming them padj_… by stripping the "p_" prefix
+  mutate(across(starts_with("p_"),
+                ~ p.adjust(.x, method = "fdr"),
+                .names = "padj_{sub('^p_','',.col)}"),
+         # 2) FDR‐correct every combined_p_… column,
+         #    naming them padj_combined_… by replacing "combined_p_" with "combined_"
+         across(starts_with("combined_p_"),
+                ~ p.adjust(.x, method = "fdr"),
+                .names = "padj_{sub('^combined_p_','combined_',.col)}")) 
+
+# delet the padj_FXS
+all_result_padj <- all_result_padj %>%
+  dplyr::select(-padj_FXS)
+
+# merge the all_result_padj with data
+
+data <- data %>%
+  left_join(all_result_padj, by = "pathway")
+
+
+
+```
+
+
+
+
+
+```{r}
+
+# check how many p value < 0.05 for each padj
+hist(data$padj_FXS_Drug_BAY)
+print("padj_FXS_Drug_BAY < 0.05")
+table(data$padj_FXS_Drug_BAY < 0.05)
+
+hist(data$p_FXS_Drug_BAY)
+print("p_FXS_Drug_BAY < 0.05")
+table(data$p_FXS_Drug_BAY < 0.05)
+
+hist(data$padj_FXS_Drug_BP)
+print("padj_FXS_Drug_BP < 0.05")
+table(data$padj_FXS_Drug_BP < 0.05)
+
+hist(data$p_FXS_Drug_BP)
+print("p_FXS_Drug_BP < 0.05")
+table(data$p_FXS_Drug_BP < 0.05)
+
+hist(data$padj_FXS_Drug_BPN)
+print("padj_FXS_Drug_BPN < 0.05")
+table(data$padj_FXS_Drug_BPN < 0.05)
+
+hist(data$p_FXS_Drug_BPN)
+print("p_FXS_Drug_BPN < 0.05")
+table(data$p_FXS_Drug_BPN < 0.05)
+```
+
+
+
+
+
+
+\newpage
+
+# 3. Define the fully rescue and partical rescue
+
+```{r define_rescue}
+
+#----------------------------------------#
+#             Drug :   BAY               #
+#----------------------------------------#
+
+# data_BAY <- data %>% filter(p_Drug_BAY > 0.05 )
+# print("First, we filter the pathway with no side effects with BAY")
+# print(sprintf("BAY no side effects: %d", nrow(data_BAY)))  
+# 
+# data_BAY <- data_BAY %>% filter(p_FXS_Drug_BPN < 0.05 & beta_FXS * beta_FXS_Drug_BPN < 0) 
+# print("Second, we filter the pathway with Drug specific effects on FXS patients")
+# print("Since we already filter the pathway with no side effects with BAY, we only need to filter the pathway with Drug specific effects on FXS patients, and the dirction have the different direction with the FXS effect")
+# print(sprintf("BAY Drug specific effects: %d", nrow(data_BAY)))
+#   
+# data_BAY <- data_BAY %>% mutate(rescue = ifelse(combined_p_BAY >= 0.05, 
+#                                                 "Full Rescue", "Partial Rescue"))
+# print("BAY")
+# table(data_BAY$rescue)
+# 
+
+
+
+library(dplyr)
+
+data_BAY <- data %>%
+  # 1) Flag side‐effects in healthy controls
+  mutate(
+    sideeffect = if_else(
+      p_Drug_BAY < 0.05,
+      "Side Effect",      # significant BAY effect in healthy
+      "No Side Effect"    # no BAY effect
+    )
+  ) %>%
+  # 2) Classify rescue (and split “Not Rescue” into two categories)
+  mutate(
+    rescue = case_when(
+      # full rescue: no healthy side effect + opposite‐direction FXS drug effect + non‐significant combined p
+      sideeffect == "No Side Effect" &
+      p_FXS_Drug_BAY < 0.05 &
+      (beta_FXS * beta_FXS_Drug_BAY) < 0 &
+      combined_p_BAY >= 0.05 ~ "Full Rescue",
+
+      # partial rescue: no healthy side effect + opposite‐direction FXS drug effect + significant combined p
+      sideeffect == "No Side Effect" &
+      p_FXS_Drug_BAY < 0.05 &
+      (beta_FXS * beta_FXS_Drug_BAY) < 0 &
+      combined_p_BAY < 0.05  ~ "Partial Rescue",
+
+      # any healthy side effect becomes its own category
+      sideeffect == "Side Effect" ~ "Side Effect",
+
+      # everything else (no side effect & no rescue candidate)
+      TRUE                        ~ "No Rescue"
+    )
+  )
+
+# Quick tabulate
+print("BAY")
+table(data_BAY$sideeffect)
+table(data_BAY$rescue)
+
+
+
+
+#----------------------------------------#
+#             Drug :   BP                #
+#----------------------------------------#
+# data_BP <- data %>% filter(p_Drug_BP > 0.05 )
+# print("First, we filter the pathway with no side effects with BP")
+# print(sprintf("BP no side effects: %d", nrow(data_BP)))
+# 
+# data_BP <- data_BP %>% filter(p_FXS_Drug_BP < 0.05 & beta_FXS * beta_FXS_Drug_BP < 0)
+# print("Second, we filter the pathway with Drug specific effects on FXS patients")
+# print("Since we already filter the pathway with no side effects with BP, we only need to filter the pathway with Drug specific effects on FXS patients, and the dirction have the different direction with the FXS effect")
+# print(sprintf("BP Drug specific effects: %d", nrow(data_BP)))
+# 
+# data_BP <- data_BP %>% mutate(rescue = ifelse(combined_p_BP >= 0.05,
+#                                                "Full Rescue", "Partial Rescue"))
+# 
+# print("BP")
+# table(data_BP$rescue)
+# 
+
+
+
+
+data_BP <- data %>%
+  # 1) Flag side‐effects in healthy controls
+  mutate(
+    sideeffect = if_else(
+      p_Drug_BP < 0.05,
+      "Side Effect",      # significant BAY effect in healthy
+      "No Side Effect"    # no BAY effect
+    )
+  ) %>%
+  # 2) Classify rescue (and split “Not Rescue” into two categories)
+  mutate(
+    rescue = case_when(
+      # full rescue: no healthy side effect + opposite‐direction FXS drug effect + non‐significant combined p
+      sideeffect == "No Side Effect" &
+        p_FXS_Drug_BP < 0.05 &
+        (beta_FXS * beta_FXS_Drug_BP) < 0 &
+        combined_p_BP >= 0.05 ~ "Full Rescue",
+      
+      # partial rescue: no healthy side effect + opposite‐direction FXS drug effect + significant combined p
+      sideeffect == "No Side Effect" &
+        p_FXS_Drug_BP < 0.05 &
+        (beta_FXS * beta_FXS_Drug_BP) < 0 &
+        combined_p_BP < 0.05  ~ "Partial Rescue",
+      
+      # any healthy side effect becomes its own category
+      sideeffect == "Side Effect" ~ "Side Effect",
+      
+      # everything else (no side effect & no rescue candidate)
+      TRUE                        ~ "No Rescue"
+    )
+  )
+
+print("BP")
+# Quick tabulate
+table(data_BP$sideeffect)
+table(data_BP$rescue)
+
+
+  
+
+#----------------------------------------#
+#             Drug :   BPN                #
+#----------------------------------------#
+# data_BPN <- data %>% filter(p_Drug_BPN > 0.05 )
+# print("First, we filter the pathway with no side effects with BPN")
+# print(sprintf("BPN no side effects: %d", nrow(data_BPN)))
+# 
+# data_BPN <- data_BPN %>% filter(p_FXS_Drug_BPN < 0.05 & beta_FXS * beta_FXS_Drug_BPN < 0)
+# print("Second, we filter the pathway with Drug specific effects on FXS patients")
+# print("Since we already filter the pathway with no side effects with BPN, we only need to filter the pathway with Drug specific effects on FXS patients, and the dirction have the different direction with the FXS effect")
+# print(sprintf("BPN Drug specific effects: %d", nrow(data_BPN)))
+# 
+# data_BPN <- data_BPN %>% mutate(rescue = ifelse(combined_p_BPN >= 0.05, 
+#                                                "Full Rescue", "Partial Rescue"))
+# print("BPN")
+# table(data_BPN$rescue)
+
+
+
+data_BPN <- data %>%
+  # 1) Flag side‐effects in healthy controls
+  mutate(
+    sideeffect = if_else(
+      p_Drug_BPN < 0.05,
+      "Side Effect",      # significant BAY effect in healthy
+      "No Side Effect"    # no BAY effect
+    )
+  ) %>%
+  # 2) Classify rescue (and split “Not Rescue” into two categories)
+  mutate(
+    rescue = case_when(
+      # full rescue: no healthy side effect + opposite‐direction FXS drug effect + non‐significant combined p
+      sideeffect == "No Side Effect" &
+        p_FXS_Drug_BPN < 0.05 &
+        (beta_FXS * beta_FXS_Drug_BPN) < 0 &
+        combined_p_BPN >= 0.05 ~ "Full Rescue",
+      
+      # partial rescue: no healthy side effect + opposite‐direction FXS drug effect + significant combined p
+      sideeffect == "No Side Effect" &
+        p_FXS_Drug_BPN < 0.05 &
+        (beta_FXS * beta_FXS_Drug_BPN) < 0 &
+        combined_p_BPN < 0.05  ~ "Partial Rescue",
+      
+      # any healthy side effect becomes its own category
+      sideeffect == "Side Effect" ~ "Side Effect",
+      
+      # everything else (no side effect & no rescue candidate)
+      TRUE                        ~ "No Rescue"
+    )
+  )
+
+# Quick tabulate
+print("BPN")
+table(data_BPN$sideeffect)
+table(data_BPN$rescue)
+
+
+
+```
+
+
+
+
+
+\newpage
+
+# 4. Bubble plot for the BioDomain
+
+```{r FXS_plot, fig.width=6, fig.height=7}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+
+# 1) Ordered BioDomains & palette (drives color for rescue points)
+all_biodomains  <- unique(data$Biodomain)
+ordered_domains <- c(setdiff(all_biodomains, "unknown"), "unknown")
+
+palette_colors <- colorRampPalette(
+  c("red","darkorange","#F1C40F","#8FBC8B",
+    "#008080","#87CEFA","slateblue","#4B0082")
+)(length(ordered_domains))
+names(palette_colors) <- ordered_domains
+
+# 2) Prepare your four data sources
+plot_configs <- list(
+  FXS = list(
+    df        = data,
+    padj_col  = "padj_FXS",
+    nes_col   = "beta_FXS",
+    use_rescue= FALSE,
+    title     = "FXS"
+  ),
+  BAY = list(
+    df        = data_BAY,
+    padj_col  = "padj_FXS_Drug_BAY",
+    nes_col   = "beta_FXS_Drug_BAY",
+    use_rescue= TRUE,
+    title     = "FXS + BAY Rescue"
+  ),
+  BP  = list(
+    df        = data_BP,
+    padj_col  = "padj_FXS_Drug_BP",
+    nes_col   = "beta_FXS_Drug_BP",
+    use_rescue= TRUE,
+    title     = "FXS + BP Rescue"
+  ),
+  BPN = list(
+    df        = data_BPN,
+    padj_col  = "padj_FXS_Drug_BPN",
+    nes_col   = "beta_FXS_Drug_BPN",
+    use_rescue= TRUE,
+    title     = "FXS + BPN Rescue"
+  )
+)
+
+# 3) Compute global scales
+global_max_logpadj <- max(
+  -log10(data$padj_FXS),
+  -log10(data_BAY$padj_FXS_Drug_BAY),
+  -log10(data_BP$padj_FXS_Drug_BP),
+  -log10(data_BPN$padj_FXS_Drug_BPN),
+  na.rm = TRUE
+)
+global_max_nes <- max(
+  abs(data$beta_FXS),
+  abs(data_BAY$beta_FXS_Drug_BAY),
+  abs(data_BP$beta_FXS_Drug_BP),
+  abs(data_BPN$beta_FXS_Drug_BPN),
+  na.rm = TRUE
+) * 1.1
+
+# 4) Loop and plot
+for(cfg in plot_configs) {
+  df        <- cfg$df
+  pcol      <- cfg$padj_col
+  ncol      <- cfg$nes_col
+  rescueOK  <- cfg$use_rescue
+  title_txt <- cfg$title
+
+  # a) build plot_data with unified Biodomains
+  plot_data <- df %>%
+    rename(
+      padj = all_of(pcol),
+      NES  = all_of(ncol)
+    ) %>%
+    complete(
+      Biodomain = ordered_domains,
+      fill      = list(padj = NA, NES = NA, rescue = "Not Rescue")
+    ) %>%
+    mutate(
+      Biodomain = factor(Biodomain, levels = ordered_domains),
+      log_padj  = -log10(padj),
+      log_padj  = ifelse(is.na(log_padj), 0, log_padj)
+    )
+
+  # b) split into grey vs. colored layers for rescue plots
+  if(rescueOK) {
+    grey_data  <- filter(plot_data, rescue %in% c("Side Effect", "No Rescue"))
+    color_data <- filter(plot_data, rescue %in% c("Full Rescue", "Partial Rescue"))
+  }
+
+  # c) build ggplot
+  if(rescueOK) {
+    p <- ggplot() +
+      # grey points for Side Effect & No Rescue
+      geom_point(
+        data  = grey_data,
+        aes(x = NES, y = fct_rev(Biodomain), size = log_padj),
+        color = "grey", alpha = 0.4, na.rm = TRUE
+      ) +
+      # colored points for Full/Partial Rescue
+      geom_point(
+        data  = color_data,
+        aes(x = NES, y = fct_rev(Biodomain),
+            size = log_padj, color = Biodomain),
+        alpha = 0.6, na.rm = TRUE
+      )
+  } else {
+    # FXS-only plot: color everything by Biodomain
+    p <- ggplot(plot_data,
+                aes(x = NES, y = fct_rev(Biodomain),
+                    size = log_padj, color = Biodomain)) +
+      geom_point(alpha = 0.6, na.rm = TRUE)
+  }
+
+  # d) unified scales, labels, and theme
+  p <- p +
+    scale_size_continuous(
+      range  = c(2, 8),
+      limits = c(0, global_max_logpadj),
+      name   = "-log10(p-value)"
+    ) +
+    scale_color_manual(values = palette_colors, guide = FALSE) +
+    scale_x_continuous(
+      limits = c(-global_max_nes, global_max_nes),
+      expand = c(0, 0)
+    ) +
+    theme_bw() +
+    labs(
+      title = paste("BioDomain Bubble Plot:", title_txt),
+      x     = if(rescueOK)
+                paste("FXS effect +", sub("FXS \\+ ", "", title_txt), "effect")
+              else "FXS effect",
+      y     = "BioDomain"
+    ) +
+    theme(
+      axis.text.y     = element_text(size = 12),
+      axis.text.x     = element_text(size = 12),
+      legend.title    = element_text(size = 10),
+      legend.text     = element_text(size = 9),
+      legend.position = "right"
+    )
+
+  # e) render and save
+  print(p)
+  fname <- gsub(" ", "_", title_txt)
+  print(fname)
+  # ggsave(paste0("./results/03-BioDomain/Bubble_", fname, ".png"),
+  #        plot = p, width = 6, height = 7)
+  # ggsave(paste0("./results/03-BioDomain/Bubble_", fname, ".pdf"),
+  #        plot = p, width = 6, height = 7)
+}
+
+
+```
+
+\newpage
+
+# Plot the gene heatmap
+
+
+
+```{r load_bulkRNA_data}
+input_count <- read.csv(here::here("data", "bulkRNA",
+                                      "bulkRNA_counts_cleaned.csv"))
+counts <-  as.data.frame(input_count) %>% 
+  column_to_rownames(var = "gene")
+colnames(counts) <- gsub("_", "-", colnames(counts))
+
+# if the colname is start with X, remove it
+colnames(counts) <- gsub("^X", "", colnames(counts))
+
+
+# raw sample list
+sample_list_raw <- read.csv(here::here("data", "bulkRNA",
+                                      "sample_info_FXS.csv")) %>%
+                    mutate(condition = Label,
+                           sample = gsub("_", "-", Sample_ID))
+
+
+# Ensure the column names of counts exist in Sample.name
+new_colnames <- sample_list_raw$sample[match(colnames(counts), sample_list_raw$sample )]
+
+# Assign new column names
+colnames(counts) <- new_colnames
+
+
+# sort the columns by the colname
+condition_list <- data.frame(
+  group =sample_list_raw$condition
+)
+
+row.names(condition_list) <- sample_list_raw$sample
+
+counts<- counts[, rownames(condition_list)]
+
+gene_name_mapping<- readRDS(here::here("data","ref" ,"gene_name_mapping.rds"))
+
+
+
+# use 
+
+
+library(DESeq2)  
+library(grid)
+
+# 2. Prepare colData
+#    Make sure your condition_list is a data.frame with rownames = sample names
+colData <- as.data.frame(condition_list)
+colData$group <- factor(colData$group)   # ensure it's a factor
+
+# Confirm samples match between counts and colData
+stopifnot(all(colnames(counts) == rownames(colData)))
+
+# 3. Create DESeqDataSet
+dds <- DESeqDataSetFromMatrix(
+  countData = counts,
+  colData   = colData,
+  design    = ~ group
+)
+
+# 4. (Optional) Filter out very low count genes
+dds <- dds[rowSums(counts(dds)) >= 10, ]
+
+# 5. Estimate size factors for library‐size normalization
+dds <- estimateSizeFactors(dds)
+
+# 6a. Extract normalized counts
+norm_counts <- counts(dds, normalized=TRUE)
+
+
+```
+
+
+
+```{r}
+# get the gene list for each BioDomain in BAY
+
+# 2. Build term tables
+term_BAY <- data_BAY %>%
+  dplyr::filter(rescue %in% c("Full Rescue","Partial Rescue")) %>%
+  dplyr::select(pathway, rescue, Biodomain) %>%
+  dplyr::distinct() %>%
+  dplyr::arrange(Biodomain)
+
+term_BP <- data_BP %>%
+  dplyr::filter(rescue %in% c("Full Rescue","Partial Rescue")) %>%
+  dplyr::select(pathway, rescue, Biodomain) %>%
+  dplyr::distinct() %>%
+  dplyr::arrange(Biodomain)
+
+term_BPN <- data_BPN %>%
+  dplyr::filter(rescue %in% c("Full Rescue","Partial Rescue")) %>%
+  dplyr::select(pathway, rescue, Biodomain) %>%
+  dplyr::distinct() %>%
+  dplyr::arrange(Biodomain)
+
+term_list <- list(BAY = term_BAY, BP = term_BP, BPN = term_BPN)
+library(msigdbr)
+m_df <- msigdbr(species = "Homo sapiens", category = "C5")
+
+
+```
+
+```{r heatmap, fig.width=6, fig.height=8}
+# Full script: expression + two‐logFC heatmaps for BAY, BP, and BPN
+# with per‐drug group levels and unified green scale for both logFC bars
+
+library(DESeq2)
+library(pheatmap)
+library(RColorBrewer)
+library(matrixStats)
+library(dplyr)
+library(tidyr)
+library(tibble)
+
+# 0. Precompute VST and load annotation_full
+vsd_obj <- vst(dds, blind = FALSE)
+annotation_full <- as.data.frame(colData(dds)[, "group", drop = FALSE])
+
+# 1. Build term tables
+term_BAY <- data_BAY %>%
+  dplyr::filter(rescue %in% c("Full Rescue","Partial Rescue")) %>%
+  dplyr::select(pathway, rescue, Biodomain) %>%
+  dplyr::distinct() %>%
+  dplyr::arrange(Biodomain)
+term_BP <- data_BP %>%
+  dplyr::filter(rescue %in% c("Full Rescue","Partial Rescue")) %>%
+  dplyr::select(pathway, rescue, Biodomain) %>%
+  dplyr::distinct() %>%
+  dplyr::arrange(Biodomain)
+term_BPN <- data_BPN %>%
+  dplyr::filter(rescue %in% c("Full Rescue","Partial Rescue")) %>%
+  dplyr::select(pathway, rescue, Biodomain) %>%
+  dplyr::distinct() %>%
+  dplyr::arrange(Biodomain)
+
+term_list <- list(BAY = term_BAY, BP = term_BP, BPN = term_BPN)
+
+# 2. Compute per‐gene log₂FCs vs CTRL_VEH
+group_means <- as.data.frame(norm_counts) %>%
+  tibble::rownames_to_column("gene") %>%
+  pivot_longer(-gene, names_to="sample", values_to="expr") %>%
+  left_join(tibble::rownames_to_column(annotation_full, "sample"), by="sample") %>%
+  group_by(gene, group) %>%
+  summarise(mean_expr = mean(expr), .groups="drop") %>%
+  pivot_wider(names_from=group, values_from=mean_expr)
+
+logfc_df <- group_means %>%
+  mutate(
+    logFC_FXS_VEH = log2((FXS_VEH + 1)/(CTRL_VEH + 1)),
+    logFC_FXS_BAY = log2((FXS_BAY + 1)/(CTRL_VEH + 1)),
+    logFC_FXS_BP  = log2((FXS_BP  + 1)/(CTRL_VEH + 1)),
+    logFC_FXS_BPN = log2((FXS_BPN + 1)/(CTRL_VEH + 1))
+  ) %>%
+  dplyr::select(gene, starts_with("logFC")) %>%
+  column_to_rownames("gene")
+
+# 3. Shared palettes
+expr_pal  <- rev(colorRampPalette(brewer.pal(11, "RdBu"))(256))
+logfc_pal <- colorRampPalette(brewer.pal(9, "Greens"))(100)
+
+# 4. Loop over each drug × biodomain
+for (drug in names(term_list)) {
+  term_df <- term_list[[drug]]
+  biodomain_list <- setdiff(unique(term_df$Biodomain), "unknown")
+  
+  for (bd in biodomain_list) {
+    message(" ", drug, " — biodomain: ", bd)
+    
+    # a) GO terms & genes
+    gos <- term_df %>%
+      dplyr::filter(Biodomain == bd) %>%
+      dplyr::pull(pathway) %>%
+      unique()
+    
+    genes_df <- m_df %>%
+      dplyr::filter(gs_name %in% gos) %>%
+      dplyr::select(pathway = gs_name, gene = gene_symbol)
+    
+    target_gene <- intersect(unique(genes_df$gene), rownames(vsd_obj))
+    if (length(target_gene) == 0) next
+    
+    # b) Define and refactor sample groups for this drug
+    drug_group   <- paste0("FXS_", drug)
+    group_levels <- c("CTRL_VEH","FXS_VEH", drug_group)
+    
+    annotation_col <- annotation_full %>%
+      tibble::rownames_to_column("sample") %>%
+      dplyr::filter(group %in% group_levels) %>%
+      dplyr::mutate(group = factor(group, levels = group_levels)) %>%
+      tibble::column_to_rownames("sample")
+    
+    target_samples <- rownames(annotation_col)
+    
+    # c) Extract & center VST expression
+    st_counts <- assay(vsd_obj)[target_gene, target_samples, drop=FALSE]
+    st_counts <- st_counts - rowMeans(st_counts, na.rm=TRUE)
+    
+    # d) Drop zero‐variance genes
+    keep <- rowVars(st_counts) > 0
+    st_counts <- st_counts[keep, , drop=FALSE]
+    target_gene <- rownames(st_counts)
+    
+    # … after computing st_counts, row_order, annotation_col, annotation_row …
+    
+    # e) Prepare two logFC columns
+    fc_cols <- c("logFC_FXS_VEH", paste0("logFC_FXS_", drug))
+    fc_mat  <- logfc_df[target_gene, fc_cols, drop=FALSE]
+    colnames(fc_mat) <- c("FXS_VEH_vs_CTRL", paste0(drug, "_vs_CTRL"))
+    
+    # f) Order rows by drug-specific logFC
+    row_order <- rownames(fc_mat)[order(fc_mat[,2], decreasing=TRUE)]
+    st_counts <- st_counts[row_order, , drop=FALSE]
+    fc_mat    <- fc_mat[row_order, , drop=FALSE]
+    
+
+    
+    
+    # g) Assemble annotation objects
+    annotation_row <- as.data.frame(fc_mat)
+    
+    # h) Shared green palette for both logFC bars
+    annotation_colors <- list()
+    annotation_colors[["group"]]             <- setNames(c("#10d5da","#fe867f","#8c6bbb"), group_levels)
+    annotation_colors[["FXS_VEH_vs_CTRL"]]   <- logfc_pal
+    annotation_colors[[paste0(drug, "_vs_CTRL")]] <- logfc_pal
+    
+    
+    # h) Output filename
+    out_file <- file.path(
+      "results/05-Heatmap",
+      paste0(drug, "_heatmap_", gsub("\\W+", "_", bd), ".png")
+    )
+    
+    
+    # i) Draw & save heatmap
+    # pheatmap(
+    #   st_counts,
+    #   color             = expr_pal,
+    #   annotation_col    = annotation_col,
+    #   annotation_row    = annotation_row,
+    #   annotation_colors = annotation_colors,
+    #   cluster_rows      = TRUE,
+    #   cluster_cols      = FALSE,
+    #   scale             = "row",
+    #   fontsize_row      = 6,
+    #   fontsize_col      = 8,
+    #   show_rownames     = FALSE,
+    #   border_color      = NA,
+    #   filename          = out_file,
+    #   width             = 6,
+    #   height            = 8
+    # )
+    # 
+    
+    
+    # 1. Assign the pheatmap result to an object
+
+  
+  # 1. Capture but don’t auto-draw
+  ph <- pheatmap(
+    st_counts,
+    color             = expr_pal,
+    annotation_col    = annotation_col,
+    annotation_row    = annotation_row,
+    annotation_colors = annotation_colors,
+    cluster_rows      = TRUE,
+    cluster_cols      = FALSE,
+    scale             = "row",
+    fontsize_row      = 6,
+    fontsize_col      = 8,
+    show_rownames     = FALSE,
+    border_color      = NA,
+    filename          = out_file,
+    width             = 6,
+    height            = 8,
+    silent            = TRUE      # <-- suppress auto-plot
+  )
+  
+  # 2. Draw it yourself
+  grid::grid.newpage()
+  grid::grid.draw(ph$gtable)
+  # 3. Save the plot
+  print(sprintf("Durg : %s, BioDomain : %s", drug, bd))
+    
+    # 2. Extract the final row order and build a data.frame
+    row_idx       <- ph$tree_row$order
+    ordered_genes <- rownames(st_counts)[row_idx]
+    ordered_mat   <- st_counts[ordered_genes, , drop=FALSE]
+    
+    # 3. Write out the genes + their scaled counts
+    out_data_file <- sub("\\.png$", "_data.csv", out_file)
+    write.csv(
+      cbind(Gene = ordered_genes, as.data.frame(ordered_mat)),
+      out_data_file,
+      row.names = FALSE
+    )
+    
+    
+
+    # print("saved ", out_data_file)
+  }
+}
+
+
+```
+
+
+
+
+
+
+\newpage
+# Session information
+```{r}
+sessionInfo()
+```
+
