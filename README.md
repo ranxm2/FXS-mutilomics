@@ -90,10 +90,10 @@ We used a **large language model (LLM)** to label the BioDomain for each GO term
 ## Mixed-Effects Model result on BioDomain
 We aggregated the mixed-effects model results across all BioDomains, focusing on the **combined effect** of disease status and drug treatment. We first selet the GO term with signficant on the disease effect (FXS). Then we used the **Benjamini-Hochberg procedure** to control the false discovery rate (FDR) at a threshold of 0.05. Then we consider the difference with the interaction term (FXS:Drug) to see if the drug treatment can rescue the disease effect. The results are also visualized in the following figure.
 
-<img src="./images/Bubble_FXS.png" alt="Naive Test" width="80%">
+<img src="./images/Bubble_FXS-AI.png" alt="Naive Test" width="80%">
 
-<img src="./images/Bubble_FXS_+_BP_Rescue.png" alt="Naive Test" width="80%">
+<img src="./images/Bubble_FXS_+_BP_Rescue-AI.png" alt="Naive Test" width="80%">
 
-<img src="./images/Bubble_FXS_+_BPN_Rescue.png" alt="Naive Test" width="80%">
+<img src="./images/Bubble_FXS_+_BPN_Rescue-AI.png" alt="Naive Test" width="80%">
 
-<img src="./images/Bubble_FXS_+_BAY_Rescue.png" alt="Naive Test" width="80%">
+<img src="./images/Bubble_FXS_+_BAY_Rescue-AI.png" alt="Naive Test" width="80%">
